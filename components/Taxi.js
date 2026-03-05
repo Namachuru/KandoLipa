@@ -1,51 +1,45 @@
 import { useEffect, useState } from "react";
-import { View, Text, Button, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+} from "react-native";
 
-import * as Location from "expo-location";
 import MapView, { Marker } from "react-native-maps";
+import * as Location from "expo-location";
 
 const Taxi = ({ navigation }) => {
   const [userLocation, setUserLocation] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  // Get user GPS location when screen loads
+  // Ride selection
+  const [rideFor, setRideFor] = useState("me");
+
+  // Search destination
+  const [destination, setDestination] = useState("");
+
+  // Fetch user location
   useEffect(() => {
     const getLocation = async () => {
-      // Ask permission
       let { status } = await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
-        alert("Permission denied! Location is needed for Taxi.");
-        setLoading(false);
+        alert("Permission denied");
         return;
       }
 
-      // Get current position
       let location = await Location.getCurrentPositionAsync({});
-
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      setLoading(false);
+      setUserLocation(location.coords);
     };
 
     getLocation();
   }, []);
 
-  const handleBack = () => {
-    navigation.navigate("Home");
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Kando Taxi 🚖</Text>
-
-      {/* Show loading while location loads */}
-      {loading ? (
-        <ActivityIndicator size="large" color="black" />
-      ) : userLocation ? (
+      {/* ✅ Map Background */}
+      {userLocation && (
         <MapView
           style={styles.map}
           initialRegion={{
@@ -55,24 +49,57 @@ const Taxi = ({ navigation }) => {
             longitudeDelta: 0.01,
           }}
         >
-          {/* Marker for user */}
           <Marker
-            coordinate={userLocation}
+            coordinate={{
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+            }}
             title="You are here"
-            description="Current Location"
           />
         </MapView>
-      ) : (
-        <Text>Location not available</Text>
       )}
 
-      {/* Back button */}
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Back Home"
-          onPress={handleBack}
-          color="rgb(165, 231, 90)"
+      {/* ✅ Floating Controls */}
+      <View style={styles.topOverlay}>
+        {/* Ride Selection Bar */}
+        <View style={styles.selectionBar}>
+          <TouchableOpacity
+            style={[
+              styles.optionButton,
+              rideFor === "me" && styles.activeOption,
+            ]}
+            onPress={() => setRideFor("me")}
+          >
+            <Text style={styles.optionText}>For Me</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.optionButton,
+              rideFor === "other" && styles.activeOption,
+            ]}
+            onPress={() => setRideFor("other")}
+          >
+            <Text style={styles.optionText}>For Someone Else</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search Bar */}
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Let's go somewhere!"
+          placeholderTextColor="#444"
+          value={destination}
+          onChangeText={setDestination}
         />
+
+        {/* ✅ Back Home Button */}
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate("Home")}
+        >
+          <Text style={styles.backText}>⬅ Back Home</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -83,25 +110,71 @@ export default Taxi;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "rgb(255, 232, 94)",
-    paddingTop: 50,
-  },
-
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 15,
-    color: "black",
   },
 
   map: {
-    flex: 1,
     width: "100%",
-    borderRadius: 20,
+    height: "100%",
   },
 
-  buttonContainer: {
-    padding: 15,
+  /* Floating Overlay */
+  topOverlay: {
+    position: "absolute",
+    top: 50,
+    width: "100%",
+    paddingHorizontal: 15,
+  },
+
+  /* Selection Bar */
+  selectionBar: {
+    flexDirection: "row",
+    backgroundColor: "white",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 12,
+    elevation: 5,
+  },
+
+  optionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+
+  activeOption: {
+    backgroundColor: "rgb(165, 231, 90)",
+  },
+
+  optionText: {
+    fontWeight: "600",
+    color: "black",
+  },
+
+  /* Search Bar */
+  searchBar: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 15,
+    fontSize: 16,
+    elevation: 5,
+    marginBottom: 12,
+  },
+
+  /* Back Home Button */
+  backButton: {
+    backgroundColor: "rgb(255, 232, 94)",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    elevation: 4,
+  },
+
+  backText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "black",
   },
 });
+
+
