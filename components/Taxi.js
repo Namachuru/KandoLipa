@@ -1,23 +1,27 @@
+import 'react-native-get-random-values';
 import { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
 } from "react-native";
 
 import MapView, { Marker } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
+import Constants from "expo-constants";
+import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 
 const Taxi = ({ navigation }) => {
   const [userLocation, setUserLocation] = useState(null);
+  const [destination, setDestination] = useState(null);
 
   // Ride selection
   const [rideFor, setRideFor] = useState("me");
 
-  // Search destination
-  const [destination, setDestination] = useState("");
+  const GOOGLE_MAPS_APIKEY = Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
+  console.log("API KEY:", GOOGLE_MAPS_APIKEY);
 
   // Fetch user location
   useEffect(() => {
@@ -36,6 +40,11 @@ const Taxi = ({ navigation }) => {
     getLocation();
   }, []);
 
+  useEffect(() => {
+    console.log("User location:", userLocation);
+    console.log("Destination:", destination);
+  }, [destination, userLocation]);
+
   return (
     <View style={styles.container}>
       {/* ✅ Map Background */}
@@ -50,17 +59,90 @@ const Taxi = ({ navigation }) => {
           }}
         >
           <Marker
-            coordinate={{
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-            }}
+            coordinate={userLocation}
             title="You are here"
           />
+
+          {/* DESTINATION MARKER */}
+          {destination && <Marker coordinate={destination} />}
+
+          {/* ROUTE LINE */}
+          {destination && userLocation && (
+            <MapViewDirections
+              origin={{
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude,
+              }}
+              destination={destination}
+              apikey={GOOGLE_MAPS_APIKEY}
+              strokeWidth={5}
+              strokeColor="black"
+              onError={(errorMessage) => {
+                console.log("Directions error:", errorMessage);
+              }}
+            />
+          )}
         </MapView>
       )}
 
+      {/* AUTOCOMPLETE SEARCH */}
+      <View style={styles.searchContainer}>
+        <GooglePlacesAutocomplete
+          placeholder="Where to?"
+          fetchDetails={true}
+          minLength={2}
+          debounce={300}
+          textInputProps={{
+            onChangeText: (text) => console.log("TYPING:", text),
+          }}
+
+          onPress={(data, details = null) => {
+            console.log("DATA:", data);
+
+            if (!details) return;
+
+            const location = details.geometry.location;
+
+            setDestination({
+              latitude: location.lat,
+              longitude: location.lng,
+            });
+          }}
+
+          query={{
+            key: GOOGLE_MAPS_APIKEY,
+            language: "en",
+          }}
+
+          enablePoweredByContainer={false}
+          keyboardShouldPersistTaps="handled"
+
+          styles={{
+            textInputContainer: {
+              width: "100%",
+              backgroundColor: "transparent",
+            },
+
+            textInput: {
+              backgroundColor: "white",
+              borderRadius: 10,
+              paddingHorizontal: 15,
+              fontSize: 16,
+              height: 50,
+              color: "black",
+            },
+
+            listView: {
+              backgroundColor: "white",
+              borderRadius: 10,
+              marginTop: 5,
+            },
+          }}
+        />
+      </View>
+
       {/* ✅ Floating Controls */}
-      <View style={styles.topOverlay}>
+      <View style={styles.topOverlay} pointerEvents="box-none">
         {/* Ride Selection Bar */}
         <View style={styles.selectionBar}>
           <TouchableOpacity
@@ -84,15 +166,6 @@ const Taxi = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
-        <TextInput
-          style={styles.searchBar}
-          placeholder="Let's go somewhere!"
-          placeholderTextColor="#444"
-          value={destination}
-          onChangeText={setDestination}
-        />
-
         {/* ✅ Back Home Button */}
         <TouchableOpacity
           style={styles.backButton}
@@ -115,14 +188,25 @@ const styles = StyleSheet.create({
   map: {
     width: "100%",
     height: "100%",
+    zIndex: 0,
   },
 
+  searchContainer: {
+    position: "absolute",
+    top: 60,
+    width: "92%",
+    alignSelf: "center",
+    zIndex: 99999,
+    elevation: 99999,
+  },
+  
   /* Floating Overlay */
   topOverlay: {
     position: "absolute",
-    top: 50,
+    top: 140,
     width: "100%",
     paddingHorizontal: 15,
+    zIndex: 1,
   },
 
   /* Selection Bar */
