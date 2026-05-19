@@ -1,5 +1,5 @@
 import 'react-native-get-random-values';
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -16,13 +16,13 @@ import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplet
 const Taxi = ({ navigation }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [destination, setDestination] = useState(null);
-
-  // Ride selection
   const [rideFor, setRideFor] = useState("me");
+  const [countryCode, setCountryCode] = useState(null);
 
+  const mapRef = useRef(null);
+  
   const GOOGLE_MAPS_APIKEY = Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
-  console.log("API KEY:", GOOGLE_MAPS_APIKEY);
-
+  
   // Fetch user location
   useEffect(() => {
     const getLocation = async () => {
@@ -35,21 +35,52 @@ const Taxi = ({ navigation }) => {
 
       let location = await Location.getCurrentPositionAsync({});
       setUserLocation(location.coords);
+
+      const geocode = await Location.reverseGeocodeAsync(location.coords);
+
+      if (geocode.length > 0) {
+        setCountryCode(
+          geocode[0].isoCountryCode?.toLowerCase()
+        );
+      }
     };
 
     getLocation();
   }, []);
 
   useEffect(() => {
-    console.log("User location:", userLocation);
-    console.log("Destination:", destination);
+    if (userLocation && destination && mapRef.current) {
+      mapRef.current.fitToCoordinates(
+        [userLocation, destination],
+        {
+          edgePadding: {
+            top: 120,
+            right: 50,
+            bottom: 250,
+            left: 50,
+          },
+          animated: true,
+        }
+      );
+    }
   }, [destination, userLocation]);
+
+  const isLoading = !userLocation || !countryCode;
+  
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Loading location...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* ✅ Map Background */}
+      {/* ✅ Map */}
       {userLocation && (
         <MapView
+          ref={mapRef}
           style={styles.map}
           initialRegion={{
             latitude: userLocation.latitude,
@@ -67,19 +98,13 @@ const Taxi = ({ navigation }) => {
           {destination && <Marker coordinate={destination} />}
 
           {/* ROUTE LINE */}
-          {destination && userLocation && (
+          {userLocation && destination && (
             <MapViewDirections
-              origin={{
-                latitude: userLocation.latitude,
-                longitude: userLocation.longitude,
-              }}
+              origin={userLocation}
               destination={destination}
               apikey={GOOGLE_MAPS_APIKEY}
               strokeWidth={5}
               strokeColor="black"
-              onError={(errorMessage) => {
-                console.log("Directions error:", errorMessage);
-              }}
             />
           )}
         </MapView>
@@ -92,13 +117,10 @@ const Taxi = ({ navigation }) => {
           fetchDetails={true}
           minLength={2}
           debounce={300}
-          textInputProps={{
-            onChangeText: (text) => console.log("TYPING:", text),
-          }}
+          enablePoweredByContainer={false}
+          keyboardShouldPersistTaps="handled"
 
           onPress={(data, details = null) => {
-            console.log("DATA:", data);
-
             if (!details) return;
 
             const location = details.geometry.location;
@@ -112,17 +134,13 @@ const Taxi = ({ navigation }) => {
           query={{
             key: GOOGLE_MAPS_APIKEY,
             language: "en",
+            components: countryCode ? `country:${countryCode}` : undefined,
           }}
-
-          enablePoweredByContainer={false}
-          keyboardShouldPersistTaps="handled"
 
           styles={{
             textInputContainer: {
               width: "100%",
-              backgroundColor: "transparent",
             },
-
             textInput: {
               backgroundColor: "white",
               borderRadius: 10,
@@ -141,8 +159,8 @@ const Taxi = ({ navigation }) => {
         />
       </View>
 
-      {/* ✅ Floating Controls */}
-      <View style={styles.topOverlay} pointerEvents="box-none">
+      {/* ✅ Controls */}
+      <View style={styles.topOverlay}>
         {/* Ride Selection Bar */}
         <View style={styles.selectionBar}>
           <TouchableOpacity
@@ -152,7 +170,7 @@ const Taxi = ({ navigation }) => {
             ]}
             onPress={() => setRideFor("me")}
           >
-            <Text style={styles.optionText}>For Me</Text>
+            <Text>For Me</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -162,7 +180,7 @@ const Taxi = ({ navigation }) => {
             ]}
             onPress={() => setRideFor("other")}
           >
-            <Text style={styles.optionText}>For Someone Else</Text>
+            <Text>For Someone Else</Text>
           </TouchableOpacity>
         </View>
 
@@ -171,7 +189,7 @@ const Taxi = ({ navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.navigate("Home")}
         >
-          <Text style={styles.backText}>⬅ Back Home</Text>
+          <Text>⬅ Back Home</Text>
         </TouchableOpacity>
       </View>
     </View>
