@@ -7,6 +7,8 @@ import Home from './components/Home';
 import Shop from './components/Shop';
 import RealEstate from './components/RealEstate';
 import Taxi from './components/Taxi';
+import FetchingDriver from './components/FetchingDriver';
+import SearchingDriver from "./components/SearchingDriver";
 
 const Stack = createStackNavigator();
 
@@ -20,6 +22,8 @@ export default function App() {
             <Stack.Screen name="Shop" component={Shop} options={{ headerShown: false}} />
             <Stack.Screen name="Real Estate" component={RealEstate} options={{ headerShown: false}} />
             <Stack.Screen name="Taxi" component={Taxi} options={{ headerShown: false}} />
+            <Stack.Screen name="FetchingDriver" component={FetchingDriver} options={{ headerShown: false}} />
+            <Stack.Screen name="SearchingDriver" component={SearchingDriver} options={{ headerShown: false}} />
         </Stack.Navigator>
     </NavigationContainer>
   );
