@@ -46,9 +46,49 @@ export const generateRideOptions = async ({
          };
       });
 
+      const withinRange = enriched.filter(driver => {
+
+   const pickRange =
+      Number(driver.status?.pick) || 0;
+
+   const allowed =
+      driver.distance <= pickRange;
+
+   console.log(
+      "RANGE CHECK:",
+      driver.mp_id,
+      "distance:",
+      driver.distance,
+      "pick:",
+      pickRange,
+      "allowed:",
+      allowed
+   );
+
+   return allowed;
+});
+
+console.log(
+   "WITHIN RANGE:",
+   withinRange.map(d => ({
+      id: d.mp_id,
+      distance: d.distance,
+      pick: d.status?.pick
+   }))
+);
+
+if (withinRange.length === 0) {
+
+   console.log(
+      "NO DRIVERS WITHIN PICKUP RANGE:",
+      type
+   );
+
+   continue;
+}
       console.log("BEFORE JAM");
 const result = runJamCompetition({
-   drivers: enriched,
+   drivers: withinRange,
    userLocation,
    destination
 });
@@ -80,7 +120,7 @@ const fareResult = calculateFare({
 
 const fareAmount = fareResult.fare;
 
-const fareEligible = enriched.filter(driver => {
+const fareEligible = withinRange.filter(driver => {
    const minPrice = driver.status?.min_price || 0;
    return fareAmount >= minPrice;
 });

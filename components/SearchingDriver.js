@@ -80,7 +80,7 @@ const SearchingDriver = ({ route }) => {
       <View style={styles.card}>
 
         <Text style={styles.title}>
-          Finding Driver for {selectedRide}
+          Finding {selectedRide} Driver 
         </Text>
 
         {driver ? (

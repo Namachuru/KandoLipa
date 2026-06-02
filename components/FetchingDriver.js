@@ -131,11 +131,8 @@ const FetchingDriver = ({ navigation, route }) => {
 
   console.log("Pickup moved:", movedDistance, "km");
 
-  let rideData = {
-    fare,
-  };
+  let updatedRideData = rideData;
 
-  // Re-run matching if pickup moved more than 0.5 km
   if (movedDistance > 0.5) {
 
     const drivers = await getAvailableDrivers({
@@ -148,7 +145,7 @@ const FetchingDriver = ({ navigation, route }) => {
       destination,
     });
 
-    rideData = options[selectedRide];
+    updatedRideData = options[selectedRide];
 
     console.log(
       "Driver matching recalculated"
@@ -159,7 +156,7 @@ const FetchingDriver = ({ navigation, route }) => {
     pickupLocation,
     destination,
     selectedRide,
-    rideData,
+    rideData: updatedRideData,
   });
 
 };
