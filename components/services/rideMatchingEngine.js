@@ -46,77 +46,84 @@ export const generateRideOptions = async ({
          };
       });
 
-      // ---------------------------------
-      // RUN JAM COMPETITION ENGINE
-      // ---------------------------------
-      const result = runJamCompetition({
-         drivers: fareEligible,
-         userLocation,
-         destination
-      });
-      console.log("JAM RESULT:", result);
-      const winner = result.winners?.[0];
-      console.log("WINNER:", winner);
-      if (!winner) continue;
-
-      // ---------------------------------
-      // WINNER METRICS
-      // ---------------------------------
-      const pickupDistance = winner.distance;
-      const pickupEta = Math.ceil(pickupDistance * 3);
-
-      const tripDistance = getDistance(
-         userLocation.latitude,
-         userLocation.longitude,
-         destination.latitude,
-         destination.longitude
-      );
-
-
-      const tripEta = Math.ceil(tripDistance * 3);
-      
-      const countryCode = "TZ";
-
-      const fare = calculateFare({
-         countryCode,
-         type,
-         distanceKm: tripDistance,
-         durationMin: tripEta,
-      });
-      console.log("FARE CHECK:", {
-   type,
-   tripDistance,
-   tripEta,
-   fare
+      console.log("BEFORE JAM");
+const result = runJamCompetition({
+   drivers: enriched,
+   userLocation,
+   destination
 });
-      const fareAmount = fare.fare;
 
-      const fareEligible =
-   enriched.filter(driver => {
+console.log("JAM RESULT:", result);
 
-      const minPrice =
-         driver.status?.min_price || 0;
+let winner = result.winners?.[0];
 
-      return fareAmount >= minPrice;
-   });
+if (!winner) continue;
 
+const pickupDistance = winner.distance;
+const pickupEta = Math.ceil(pickupDistance * 3);
+
+const tripDistance = getDistance(
+   userLocation.latitude,
+   userLocation.longitude,
+   destination.latitude,
+   destination.longitude
+);
+
+const tripEta = Math.ceil(tripDistance * 3);
+
+const fareResult = calculateFare({
+   countryCode: "TZ",
+   type,
+   distanceKm: tripDistance,
+   durationMin: tripEta,
+});
+
+const fareAmount = fareResult.fare;
+
+const fareEligible = enriched.filter(driver => {
+   const minPrice = driver.status?.min_price || 0;
+   return fareAmount >= minPrice;
+});
+
+if (fareEligible.length === 0) {
+   console.log(
+      "NO DRIVERS ACCEPT THIS FARE",
+      type,
+      fareAmount
+   );
+   continue;
+}
+
+winner =
+   fareEligible.find(
+      d => d.mp_id === winner.mp_id
+   ) || fareEligible[0];
+      console.log("WINNER:", winner.mp_id);
+console.log("FARE RESULT:", fareResult);
       // ---------------------------------
       // BUILD RIDE OPTION
       // ---------------------------------
       rideOptions[type] = {
          type,
          winner,
-         backup: result.winners?.slice(1) ||[],
+         backupDrivers: result.winners?.slice(1) ||[],
          competitorIds: result.competitorIds || [],
          pickupDistance,
          pickupEta,
          tripDistance,
          tripEta,
-         fare: fare?.fare ?? 0
+         fare: fareResult.fare,
+         currency: "TZS",
+         available: true
       };
+
+      console.log(
+   "RIDE OPTION CREATED:",
+   rideOptions[type]
+);
    }
 
-   console.log("FINAL RIDE OPTIONS:", rideOptions);
+   console.log("FINAL RIDE OPTIONS:", JSON.stringify(rideOptions, null, 2));
 
    return rideOptions;
 };

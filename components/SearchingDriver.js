@@ -39,7 +39,7 @@ const SearchingDriver = ({ route }) => {
     );
   }
 
-  const driver = rideData?.winner;
+  const driver = rideData?.winner ?? null;
 
   return (
     <View style={styles.container}>

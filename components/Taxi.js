@@ -244,16 +244,20 @@ const Taxi = ({ navigation }) => {
    console.log("destination:", destination);
    console.log("userLocation:", userLocation);
 
-   if (!userLocation || !destination || !region?.countryCode) return;
-
    const loadRides = async () => {
+    if (!userLocation || !destination || drivers.length === 0) return;
+
       console.log("DRIVERS STATE:", drivers);
+      
       const result = await generateRideOptions({
         drivers,
         userLocation,
         destination
       });
 
+      console.log("FINAL RIDE OPTIONS:", JSON.stringify(result, null, 2));
+      
+      console.log("GENERATE RESULT:", result);
       setRideOptions(result);
 
       console.log("RIDE OPTIONS:", result);
@@ -292,7 +296,7 @@ const Taxi = ({ navigation }) => {
     );
   }
   console.log("RIDE OPTIONS KEYS:", Object.keys(rideOptions));
-  
+  console.log("RIDE OPTIONS STATE:", rideOptions);
   return (
     <View style={styles.container}>
       {/* ✅ Map */}
@@ -339,14 +343,19 @@ const Taxi = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
 
           onPress={(data, details = null) => {
-            if (!details) return;
-
+            console.log("PLACE SELECTED", data);
+            if (!details) {
+              console.log("NO DETAILS");
+              return;
+            }
             const location = details.geometry.location;
 
             setDestination({
               latitude: location.lat,
               longitude: location.lng,
             });
+
+            console.log("DESTINATION SET");
           }}
 
           query={{
@@ -371,6 +380,8 @@ const Taxi = ({ navigation }) => {
               backgroundColor: "white",
               borderRadius: 10,
               marginTop: 5,
+              zIndex: 999999,
+              elevation: 999999
             },
           }}
         />
@@ -471,11 +482,11 @@ const Taxi = ({ navigation }) => {
         </Text>
 
         <Text style={styles.vehicleEta}>
-          ETA: {rideOptions.Mchoro.pickupEta} min
+          ETA: {rideOptions?.Mchoro?.pickupEta ?? 0} min
         </Text>
         </View>
         <Text style={styles.vehicleFare}>
-          TSh {rideOptions.Mchoro.fare}
+          TSh {rideOptions?.Mchoro?.fare ?? 0}
         </Text>
 
       </Animated.View>
@@ -548,11 +559,11 @@ const Taxi = ({ navigation }) => {
         </Text>
 
         <Text style={styles.vehicleEta}>
-          ETA: {rideOptions.Roka.pickupEta} min
+          ETA: {rideOptions?.Roka?.pickupEta ?? 0} min
         </Text>
         </View>
         <Text style={styles.vehicleFare}>
-          TSh {rideOptions.Roka.fare}
+          TSh {rideOptions?.Roka?.fare ?? 0}
         </Text>
 
       </Animated.View>
@@ -617,11 +628,11 @@ const Taxi = ({ navigation }) => {
         </Text>
 
         <Text style={styles.vehicleEta}>
-          ETA: {rideOptions.Wea.pickupEta} min
+          ETA: {rideOptions?.Wea?.pickupEta ?? 0} min
         </Text>
         </View>
         <Text style={styles.vehicleFare}>
-          TSh {rideOptions.Wea.fare}
+          TSh {rideOptions?.Wea?.fare ?? 0}
         </Text>
 
       </Animated.View>
@@ -686,12 +697,12 @@ const Taxi = ({ navigation }) => {
         </Text>
         
         <Text style={styles.vehicleEta}>
-          ETA: {rideOptions.Zoa.pickupEta} min
+          ETA: {rideOptions?.Zoa?.pickupEta ?? 0} min
         </Text>
         </View>
 
         <Text style={styles.vehicleFare}>
-          TSh {rideOptions.Zoa.fare}
+          TSh {rideOptions?.Zoa?.fare ?? 0}
         </Text>
       </Animated.View>
 
@@ -735,6 +746,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     backgroundColor: "transparent",
     zIndex: 1,
+    pointerEvents: "box-none"
   },
 
   /* Selection Bar */
@@ -811,6 +823,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 5,
     zIndex: 999,
+    pointerEvents: "box-none"
   },
 
   vehicleCard: {
