@@ -1,10 +1,21 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  Animated,
+  TouchableOpacity,
+} from "react-native";
+
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import Constants from "expo-constants";
 
-const SearchingDriver = ({ route }) => {
+import { ref, onValue, set } from "firebase/database";
+import { faidaDb } from "../firebase/firebase";
+
+const SearchingDriver = ({ route, navigation }) => {
   const {
     pickupLocation,
     destination,
@@ -12,8 +23,11 @@ const SearchingDriver = ({ route }) => {
     rideData,
   } = route.params || {};
 
+  const driver = rideData?.winner ?? null;
+
   const pulse = useRef(new Animated.Value(1)).current;
 
+  // Pulse animation
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -31,6 +45,70 @@ const SearchingDriver = ({ route }) => {
     ).start();
   }, []);
 
+  // Listen for driver response (accepted)
+  useEffect(() => {
+    if (!driver?.mp_id) return;
+
+    const path = `mobility_partners/${driver.mp_id}/status/state`;
+    console.log("LISTENING TO:", path);
+
+    const stateRef = ref(faidaDb, path);
+
+    const unsubscribe = onValue(stateRef, (snapshot) => {
+      const state = snapshot.val();
+
+      console.log("DRIVER STATE:", state);
+
+      if (state === "accepted") {
+        console.log("Driver accepted. Navigating...");
+
+        navigation.replace("DriverApproaching", {
+          driver,
+          pickupLocation,
+          destination,
+          rideData,
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [driver]);
+
+  // Timeout if no driver accepts
+  useEffect(() => {
+    if (rideData?.winner) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      Alert.alert(
+        "No Driver Found",
+        "No driver accepted your request."
+      );
+
+      navigation.navigate("Taxi");
+    }, 20000);
+
+    return () => clearTimeout(timeout);
+  }, [rideData, navigation]);
+
+  // Send request (THIS is where pending is written)
+  const sendRequestToDriver = async () => {
+    if (!driver?.mp_id) return;
+
+    try {
+      const path = `mobility_partners/${driver.mp_id}/status/state`;
+
+      console.log("WRITING:", path);
+
+      await set(ref(faidaDb, path), "pending");
+
+      console.log("PENDING WRITTEN");
+    } catch (error) {
+      console.log("WRITE ERROR:", error);
+    }
+  };
+
   if (!pickupLocation || !destination) {
     return (
       <View style={styles.center}>
@@ -39,11 +117,8 @@ const SearchingDriver = ({ route }) => {
     );
   }
 
-  const driver = rideData?.winner ?? null;
-
   return (
     <View style={styles.container}>
-
       {/* MAP */}
       <MapView
         style={styles.map}
@@ -76,11 +151,10 @@ const SearchingDriver = ({ route }) => {
         )}
       </MapView>
 
-      {/* BOTTOM CARD */}
+      {/* CARD */}
       <View style={styles.card}>
-
         <Text style={styles.title}>
-          Finding {selectedRide} Driver 
+          Finding {selectedRide} Driver
         </Text>
 
         {driver ? (
@@ -101,6 +175,14 @@ const SearchingDriver = ({ route }) => {
               ⏱ ETA: {rideData?.pickupEta} min
             </Text>
 
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={sendRequestToDriver}
+            >
+              <Text style={styles.confirmText}>
+                Confirm Request
+              </Text>
+            </TouchableOpacity>
           </>
         ) : (
           <View style={styles.loadingBox}>
@@ -115,9 +197,7 @@ const SearchingDriver = ({ route }) => {
             </Text>
           </View>
         )}
-
       </View>
-
     </View>
   );
 };
@@ -126,7 +206,6 @@ export default SearchingDriver;
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
   map: { flex: 1 },
 
   center: {
@@ -178,5 +257,19 @@ const styles = StyleSheet.create({
 
   loadingText: {
     opacity: 0.6,
+  },
+
+  confirmButton: {
+    marginTop: 15,
+    backgroundColor: "#22c55e",
+    padding: 15,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  confirmText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });

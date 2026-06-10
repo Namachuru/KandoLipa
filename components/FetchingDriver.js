@@ -118,6 +118,13 @@ const FetchingDriver = ({ navigation, route }) => {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       });
+
+      mapRef.current?.animateToRegion({
+  latitude: location.coords.latitude,
+  longitude: location.coords.longitude,
+  latitudeDelta: 0.01,
+  longitudeDelta: 0.01,
+}, 1000);
     };
 
   const confirmPickup = async () => {
