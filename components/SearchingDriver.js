@@ -49,7 +49,7 @@ const SearchingDriver = ({ route, navigation }) => {
   useEffect(() => {
     if (!driver?.mp_id) return;
 
-    const path = `mobility_partners/${driver.mp_id}/status/state`;
+    const path = `KandoFaida/mobility_partners/${driver.mp_id}/status/state`;
     console.log("LISTENING TO:", path);
 
     const stateRef = ref(faidaDb, path);
@@ -97,7 +97,7 @@ const SearchingDriver = ({ route, navigation }) => {
     if (!driver?.mp_id) return;
 
     try {
-      const path = `mobility_partners/${driver.mp_id}/status/state`;
+      const path = `KandoFaida/mobility_partners/${driver.mp_id}/status/state`;
 
       console.log("WRITING:", path);
 
