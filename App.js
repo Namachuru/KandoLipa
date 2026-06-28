@@ -10,6 +10,8 @@ import Taxi from './components/Taxi';
 import FetchingDriver from './components/FetchingDriver';
 import SearchingDriver from './components/SearchingDriver';
 import DriverApproaching from './components/DriverApproachingScreen';
+import Trip from './components/TripScreen';
+import Arrived from './components/ArrivedScreen';
 
 const Stack = createStackNavigator();
 
@@ -26,6 +28,8 @@ export default function App() {
             <Stack.Screen name="FetchingDriver" component={FetchingDriver} options={{ headerShown: false}} />
             <Stack.Screen name="SearchingDriver" component={SearchingDriver} options={{ headerShown: false}} />
             <Stack.Screen name="DriverApproaching" component={DriverApproaching} options={{ headerShown: false}} />
+            <Stack.Screen name="Trip" component={Trip} options={{ headerShown: false}} />
+            <Stack.Screen name="Arrived" component={Arrived} options={{ headerShown: false}} />
         </Stack.Navigator>
     </NavigationContainer>
   );

@@ -200,7 +200,9 @@ const Taxi = ({ navigation }) => {
         return;
       }
 
-      let location = await Location.getCurrentPositionAsync({});
+      let location = await Location.getCurrentPositionAsync({
+  accuracy: Location.Accuracy.BestForNavigation,
+});
       setUserLocation(location.coords);
 
       const geocode = await Location.reverseGeocodeAsync(location.coords);

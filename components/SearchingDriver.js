@@ -66,7 +66,7 @@ const SearchingDriver = ({ route, navigation }) => {
           driver,
           pickupLocation,
           destination,
-          rideData,
+          rideData
         });
       }
     });
