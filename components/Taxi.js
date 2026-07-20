@@ -1,13 +1,13 @@
 import 'react-native-get-random-values';
 import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from "react-native";
-import { generateRideOptions } from "./services/rideMatchingEngine";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../firebase/firebase";
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
 import Constants from "expo-constants";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
-import { getAvailableDrivers } from "./services/driverService";
 
 const Taxi = ({ navigation }) => {
   const [userLocation, setUserLocation] = useState(null);
@@ -18,8 +18,8 @@ const Taxi = ({ navigation }) => {
    city: null,
   });
   const [rideOptions, setRideOptions] = useState({});
-  const [drivers, setDrivers] = useState([]);
-
+  const matchDriver = httpsCallable(functions, "matchDriver");
+  
   const mapRef = useRef(null);
   
   const GOOGLE_MAPS_APIKEY = Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
@@ -207,6 +207,8 @@ const Taxi = ({ navigation }) => {
 
       const geocode = await Location.reverseGeocodeAsync(location.coords);
 
+      console.log("GEOCODE:", geocode);
+
       if (geocode.length > 0) {
         setRegion({
           countryCode:
@@ -247,46 +249,32 @@ const Taxi = ({ navigation }) => {
    console.log("userLocation:", userLocation);
 
    const loadRides = async () => {
-    if (!userLocation || !destination || drivers.length === 0) return;
+  if (!userLocation || !destination) return;
 
-      console.log("DRIVERS STATE:", drivers);
-      
-      const result = await generateRideOptions({
-        drivers,
-        userLocation,
-        destination
-      });
+  try {
+    const result = await matchDriver({
+      userLocation: {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+      },
+      destination: {
+        latitude: destination.latitude,
+        longitude: destination.longitude,
+      },
+    });
 
-      console.log("FINAL RIDE OPTIONS:", JSON.stringify(result, null, 2));
-      
-      console.log("GENERATE RESULT:", result);
-      setRideOptions(result);
+    console.log("Ride options:", result.data);
 
-      console.log("RIDE OPTIONS:", result);
-   };
+    setRideOptions(result.data);
+
+  } catch (err) {
+    console.error(err);
+  }
+};
 
    loadRides();
 
-  }, [userLocation, destination, region?.countryCode, drivers]);
-
-  useEffect(() => {
-
-    const loadDrivers = async () => {
-      console.log("DRIVERS STATE:", drivers);
-      if (!userLocation) return;
-
-      const data = await getAvailableDrivers({
-        userLocation
-      });
-
-      console.log("AVAILABLE DRIVERS:", data);
-
-      setDrivers(data);
-    };
-
-    loadDrivers();
-
-  }, [userLocation]);
+  }, [userLocation, destination]);
 
   const isLoading = !userLocation || !region.countryCode;
   
@@ -876,5 +864,4 @@ vehicleFare: {
   fontWeight: "bold",
 },
 });
-
 

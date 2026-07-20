@@ -1,14 +1,11 @@
 import { View, Text, StyleSheet, Image } from "react-native";
 import { useEffect, useState } from "react";
 import * as SplashScreen from "expo-splash-screen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 SplashScreen.preventAutoHideAsync();
 
-export default function StepAnimationWithLogo({ navigation }) {
-  const [stepIndex, setStepIndex] = useState(0);
-  const [showLogo, setShowLogo] = useState(false);
-
-  const stepImages = [
+const stepImages = [
     require("../assets/steps/step1.png"),
     require("../assets/steps/step2.png"),
     require("../assets/steps/step3.png"),
@@ -19,34 +16,76 @@ export default function StepAnimationWithLogo({ navigation }) {
     require("../assets/steps/step8.png"),
   ];
 
+export default function StepAnimationWithLogo({ navigation }) {
+  const [stepIndex, setStepIndex] = useState(0);
+  const [showLogo, setShowLogo] = useState(false);
+
+  
+useEffect(() => {
+  SplashScreen.hideAsync();
+}, []);
+
   useEffect(() => {
     let current = 0;
+    let stepTimer;
+    let loginTimer;
 
     const animateSteps = () => {
       setStepIndex(current);
+      console.log("STEP:", current);
+      stepTimer = setTimeout(() => {
 
-      setTimeout(() => {
         current++;
+
         if (current < stepImages.length) {
           animateSteps();
+
         } else {
-          // After last step, show logo and slogan immediately
+
+          // Show logo after last step
           setShowLogo(true);
-          setTimeout(() => {
-            SplashScreen.hideAsync();
-            navigation.navigate("First Login");
+      
+          loginTimer = setTimeout(async () => {
+
+            await SplashScreen.hideAsync();
+
+            const userId = await AsyncStorage.getItem("userId");
+            const isFirstTime = await AsyncStorage.getItem("isFirstTime");
+
+            console.log("STARTUP USER:", userId);
+            console.log("STARTUP FIRST TIME:", isFirstTime);
+
+
+            if (userId && isFirstTime === "false") {
+
+              navigation.replace("Home", {
+                userId
+              });
+
+            } else {
+
+              navigation.replace("Login");
+
+            }
+
           }, 1500);
         }
       }, 300); // display each step for 0.3s
     };
 
     animateSteps();
+
+    return () => {
+      clearTimeout(stepTimer);
+      clearTimeout(loginTimer);
+    };
   }, []);
 
   return (
     <View style={styles.container}>
       {!showLogo ? (
         <Image
+          key={stepIndex}
           source={stepImages[stepIndex]}
           style={styles.stepImage}
           resizeMode="contain"

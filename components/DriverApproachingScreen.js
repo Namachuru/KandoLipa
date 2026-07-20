@@ -6,7 +6,6 @@ import { ref, onValue, set } from "firebase/database";
 import { faidaDb } from "../firebase/firebase";
 import Constants from "expo-constants";
 import { useNavigation } from "@react-navigation/native";
-import { pricingRegistry } from "./data/pricing";
 
 const GOOGLE_MAPS_API_KEY =
   Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
@@ -107,7 +106,7 @@ const DriverApproachingScreen = ({ route }) => {
 
     console.log("Distance to pickup:", distance);
 
-    if (distance <= 40) {
+    if (distance <= 30) {
       hasArrivedRef.current = true;
 
       set(
@@ -146,10 +145,7 @@ const DriverApproachingScreen = ({ route }) => {
 
         navigation.replace("Trip", {
           driver,
-          rideData: {
-            ...rideData,
-            pricing: pricingRegistry.TZ[rideData.type],
-          },
+          rideData,
           pickupLocation,
           destination,
         });

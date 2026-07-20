@@ -2,59 +2,51 @@ import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Image } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import Constants from "expo-constants";
 import { ref, onValue, set } from "firebase/database";
 import { faidaDb } from "../firebase/firebase";
 import { useNavigation } from "@react-navigation/native";
-import { pricingRegistry } from "./data/pricing";
 
 const GOOGLE_MAPS_API_KEY =
   Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
 
-const calculateFare = (distanceKm, rideType) => {
-  let baseFare = 1000;
-  let perKm = 500;
+/* ---------------- DISTANCE HELPER ---------------- */
+const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
+  const R = 6371000;
 
-  switch (rideType) {
-    case "Roka":
-      baseFare = 1000;
-      perKm = 400;
-      break;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
 
-    case "Wea":
-      baseFare = 1500;
-      perKm = 600;
-      break;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
 
-    case "Mchoro":
-      baseFare = 2000;
-      perKm = 800;
-      break;
-  }
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return Math.round(baseFare + distanceKm * perKm);
+  return R * c;
 };
 
 const TripScreen = ({ route }) => {
-  const {
-    driver,
-    pickupLocation,
-    destination,
-    rideData,
-  } = route.params;
+  const { driver, destination, rideData } = route.params;
 
   const navigation = useNavigation();
+  const functions = getFunctions();
+  const completeTrip = httpsCallable(functions, "completeTrip");
   const mapRef = useRef(null);
+
   const tripStartTimeRef = useRef(Date.now());
-  const [actualDistanceKm, setActualDistanceKm] = useState(0);
+  const previousPointRef = useRef(null);
+  const arrivalCountRef = useRef(0);
 
   const [driverLocation, setDriverLocation] = useState(null);
   const [distanceLeft, setDistanceLeft] = useState(null);
   const [eta, setEta] = useState(null);
   const [tripEnded, setTripEnded] = useState(false);
 
-  const [arrivalCount, setArrivalCount] = useState(0);
-  const rates = pricingRegistry.TZ[rideData.type];
+  const [actualDistanceKm, setActualDistanceKm] = useState(0);
 
   const vehicleImage =
     rideData.type === "Roka"
@@ -64,8 +56,8 @@ const TripScreen = ({ route }) => {
       : rideData.type === "Mchoro"
       ? require("../assets/weari/mchoro_satelite.png")
       : require("../assets/weari/wea_satelite.png");
-    
-  /* ---------------- DRIVER LIVE LOCATION (IMPROVED) ---------------- */
+
+  /* ---------------- LIVE DRIVER LOCATION ---------------- */
   useEffect(() => {
     const locationRef = ref(
       faidaDb,
@@ -76,41 +68,41 @@ const TripScreen = ({ route }) => {
       if (!snapshot.exists()) return;
 
       const loc = snapshot.val();
-
       if (!loc?.lat || !loc?.lng) return;
 
-      // ❌ ignore bad GPS accuracy
-      if (loc?.accuracy && loc.accuracy > 25) {
-        console.log("Bad GPS ignored:", loc.accuracy);
-        return;
+      // ignore bad GPS
+      if (loc?.accuracy && loc.accuracy > 30) return;
+
+      const newPoint = {
+        latitude: loc.lat,
+        longitude: loc.lng,
+      };
+
+      /* ---------------- DISTANCE TRAVELLED ---------------- */
+      if (previousPointRef.current) {
+        const segment = getDistanceMeters(
+          previousPointRef.current.latitude,
+          previousPointRef.current.longitude,
+          newPoint.latitude,
+          newPoint.longitude
+        );
+
+        if (segment < 100) {
+          setActualDistanceKm((old) => old + segment / 1000);
+        }
       }
 
+      previousPointRef.current = newPoint;
+
+      /* ---------------- GPS SMOOTHING ---------------- */
       setDriverLocation((prev) => {
-  const newPoint = {
-    latitude: loc.lat,
-    longitude: loc.lng,
-  };
+        if (!prev) return newPoint;
 
-  if (prev) {
-    const segmentMeters = getDistanceMeters(
-      prev.latitude,
-      prev.longitude,
-      newPoint.latitude,
-      newPoint.longitude
-    );
-
-    setActualDistanceKm(
-      (oldDistance) => oldDistance + segmentMeters / 1000
-    );
-  }
-
-  if (!prev) return newPoint;
-
-  return {
-    latitude: prev.latitude * 0.6 + newPoint.latitude * 0.4,
-    longitude: prev.longitude * 0.6 + newPoint.longitude * 0.4,
-  };
-});
+        return {
+          latitude: prev.latitude * 0.7 + newPoint.latitude * 0.3,
+          longitude: prev.longitude * 0.7 + newPoint.longitude * 0.3,
+        };
+      });
     });
 
     return () => unsubscribe();
@@ -120,39 +112,47 @@ const TripScreen = ({ route }) => {
   useEffect(() => {
     if (!driverLocation || !destination) return;
 
-    mapRef.current?.fitToCoordinates(
-      [driverLocation, destination],
-      {
-        edgePadding: {
-          top: 100,
-          right: 50,
-          bottom: 200,
-          left: 50,
-        },
-        animated: true,
-      }
-    );
+    mapRef.current?.fitToCoordinates([driverLocation, destination], {
+      edgePadding: {
+        top: 100,
+        right: 50,
+        bottom: 200,
+        left: 50,
+      },
+      animated: true,
+    });
   }, [driverLocation, destination]);
 
-  /* ---------------- DISTANCE FUNCTION ---------------- */
-  const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000;
+  const finishTrip = async () => {
+  if (tripEnded) return;
 
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  setTripEnded(true);
 
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) ** 2;
+  const actualMinutes =
+    (Date.now() - tripStartTimeRef.current) / 60000;
 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  try {
+    const result = await completeTrip({
+      driverId: driver.mp_id,
+      rideType: rideData.type,
+      actualDistanceKm,
+      actualMinutes,
+    });
 
-    return R * c;
-  };
+    navigation.replace("Arrived", {
+      driver,
+      rideData,
+      finalFare: result.data.finalFare,
+      actualDistanceKm,
+      actualMinutes,
+    });
 
-  /* ---------------- ARRIVAL LOGIC (STABLE) ---------------- */
+  } catch (err) {
+    console.log(err);
+    setTripEnded(false);
+  }
+};
+  /* ---------------- ARRIVAL DETECTION ---------------- */
   useEffect(() => {
     if (!driverLocation || !destination || tripEnded) return;
 
@@ -163,46 +163,16 @@ const TripScreen = ({ route }) => {
       destination.longitude
     );
 
-    // 🔥 relaxed threshold (fixes 80m GPS drift issue)
-    if (distance <= 100) {
-      setArrivalCount((prev) => prev + 1);
+    if (distance <= 60) {
+      arrivalCountRef.current += 1;
     } else {
-      setArrivalCount(0);
+      arrivalCountRef.current = 0;
     }
 
-    // ✔ confirm arrival only after stable readings
-    if (arrivalCount >= 3) {
-      setTripEnded(true);
-
-      set(
-        ref(
-          faidaDb,
-          `KandoFaida/mobility_partners/${driver.mp_id}/status/state`
-        ),
-        "completed"
-      );
-
-      const actualMinutes =
-  (Date.now() - tripStartTimeRef.current) / 60000;
-
-const finalFare = Math.max(
-  rates.minimumFare,
-  Math.round(
-    rates.baseFare +
-      actualDistanceKm * rates.perKm +
-      actualMinutes * rates.perMinute
-  )
-);
-
-      navigation.replace("Arrived", {
-        driver,
-        rideData,
-        finalFare,
-        actualDistanceKm,
-        actualMinutes,
-      });
+    if (arrivalCountRef.current >= 3) {
+      finishTrip();
     }
-  }, [driverLocation, arrivalCount]);
+  }, [driverLocation]);
 
   /* ---------------- LOADING ---------------- */
   if (!driverLocation || !destination) {
@@ -226,19 +196,12 @@ const finalFare = Math.max(
           longitudeDelta: 0.01,
         }}
       >
-        {/* DRIVER */}
-        <Marker coordinate={driverLocation} style={styles.markerContainer}>
+        <Marker coordinate={driverLocation}>
           <Image source={vehicleImage} style={styles.markerImage} />
         </Marker>
 
-        {/* DESTINATION */}
-        <Marker
-          coordinate={destination}
-          title="Destination"
-          pinColor="green"
-        />
+        <Marker coordinate={destination} pinColor="green" />
 
-        {/* ROUTE */}
         <MapViewDirections
           origin={driverLocation}
           destination={destination}
@@ -252,7 +215,6 @@ const finalFare = Math.max(
         />
       </MapView>
 
-      {/* INFO CARD */}
       <View style={styles.card}>
         <Text style={styles.title}>Trip in Progress</Text>
 
@@ -264,9 +226,7 @@ const finalFare = Math.max(
           {distanceLeft ? distanceLeft.toFixed(1) : "--"} km remaining
         </Text>
 
-        <Text style={styles.info}>
-          ETA: {eta || "--"} min
-        </Text>
+        <Text style={styles.info}>ETA: {eta || "--"} min</Text>
 
         <Text style={styles.fare}>
           Fare will be calculated at end of trip
@@ -277,66 +237,3 @@ const finalFare = Math.max(
 };
 
 export default TripScreen;
-
-/* ---------------- STYLES ---------------- */
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  card: {
-    position: "absolute",
-    bottom: 25,
-    left: 15,
-    right: 15,
-    backgroundColor: "white",
-    padding: 18,
-    borderRadius: 18,
-    elevation: 5,
-  },
-
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-
-  info: {
-    fontSize: 15,
-    marginBottom: 4,
-  },
-
-  big: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginVertical: 6,
-  },
-
-  fare: {
-    marginTop: 10,
-    fontSize: 13,
-    opacity: 0.6,
-  },
-
-  markerContainer: {
-  width: 50,
-  height: 50,
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-markerImage: {
-  width: 40,
-  height: 40,
-  resizeMode: "contain",
-},
-});

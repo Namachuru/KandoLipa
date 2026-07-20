@@ -7,7 +7,7 @@ const Home = ({ navigation }) => {
       await AsyncStorage.clear();
       Alert.alert('Success', 'Storage has been reset!');
       // Navigate to FirstTimeRegistration after reset
-      navigation.navigate('FirstLogin');
+      navigation.navigate('Login');
     } catch (error) {
       Alert.alert('Error', 'Failed to reset storage.');
     }

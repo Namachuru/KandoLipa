@@ -1,21 +1,26 @@
 // firebase.js
 import { initializeApp } from "firebase/app";
+import { initializeAuth, getReactNativePersistence, } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getDatabase } from "firebase/database";
+import { getFunctions } from "firebase/functions";
 
 //KandoLipa
 const lipaConfig = {
-  apiKey: "AIzaSyD6WlkV6PwkVd9NBhkE9x1tFcbay0Wzvxc",
-  authDomain: "kandolipa-e4ea4.firebaseapp.com",
-  //databaseURL: "https://kandolipa-default-rtdb.firebaseio.com",
-  projectId: "kandolipa-e4ea4",
-  storageBucket: "kandolipa-e4ea4.firebasestorage.app",
-  messagingSenderId: "230552628071",
-  appId: "1:230552628071:web:445476dc558f79106b5dc2"
+  apiKey: "AIzaSyBchOfSFS2IX-w1uaqGDSM1x3KELZ9HTsw",
+  authDomain: "kandolipa-e839b.firebaseapp.com",
+  databaseURL: "https://kandolipa-e839b-default-rtdb.firebaseio.com",
+  projectId: "kandolipa-e839b",
+  storageBucket: "kandolipa-e839b.firebasestorage.app",
+  messagingSenderId: "745437046606",
+  appId: "1:745437046606:web:a0e3e82f884240d116e01f"
 };
 
 const lipaApp = initializeApp(lipaConfig);
-//export const lipaDb = getDatabase(lipaApp);
 
+export const auth = initializeAuth(lipaApp, { persistence: getReactNativePersistence(AsyncStorage),});
+export const lipaDb = getDatabase(lipaApp);
+export const functions = getFunctions(lipaApp);
 
 //KandoFaida
 const faidaConfig = {

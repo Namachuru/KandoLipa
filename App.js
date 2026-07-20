@@ -2,7 +2,10 @@ import { StyleSheet } from "react-native";
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import SplashSrc from './components/SplashSrc';
-import FirstTimeRegistration from './components/FirstTimeRegistration';
+import AuthLoading from './components/AuthLoading';
+import Login from './components/Login';
+import VerifyOTP from "./components/VerifyOTP";
+import CompleteProfile from "./components/CompleteProfile";
 import Home from './components/Home';
 import Shop from './components/Shop';
 import RealEstate from './components/RealEstate';
@@ -13,6 +16,7 @@ import DriverApproaching from './components/DriverApproachingScreen';
 import Trip from './components/TripScreen';
 import Arrived from './components/ArrivedScreen';
 
+
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -20,7 +24,10 @@ export default function App() {
     <NavigationContainer>
         <Stack.Navigator initialRouteName="Splash">
             <Stack.Screen name="Splash" component={SplashSrc} options={{ headerShown: false}} />
-            <Stack.Screen name="First Login" component={FirstTimeRegistration} options={{ headerShown: false}} />
+            <Stack.Screen name="AuthLoading" component={AuthLoading} options={{ headerShown: false}} />
+            <Stack.Screen name="Login" component={Login} options={{ headerShown: false}} />
+            <Stack.Screen name="VerifyOTP" component={VerifyOTP} options={{ headerShown: false}} />
+            <Stack.Screen name="CompleteProfile" component={CompleteProfile} options={{ headerShown: false}} />
             <Stack.Screen name="Home" component={Home} options={{ headerShown: false}} />
             <Stack.Screen name="Shop" component={Shop} options={{ headerShown: false}} />
             <Stack.Screen name="Real Estate" component={RealEstate} options={{ headerShown: false}} />

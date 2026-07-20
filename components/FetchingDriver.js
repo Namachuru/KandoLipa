@@ -6,14 +6,14 @@ import {
   TouchableOpacity,
 } from "react-native";
 
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../firebase/firebase";
+import { auth } from "../firebase/firebase";
+
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
 import Constants from "expo-constants";
-
-import { getDistance } from "./services/getDistance";
-import { getAvailableDrivers } from "./services/driverService";
-import { generateRideOptions } from "./services/rideMatchingEngine";
 
 const FetchingDriver = ({ navigation, route }) => {
 
@@ -22,10 +22,7 @@ const FetchingDriver = ({ navigation, route }) => {
     destination,
     selectedRide,
     rideData,
-    baseFare = 0,
   } = route.params || {};
-
-  const originalLocation = userLocation;
 
   const mapRef = useRef(null);
 
@@ -35,47 +32,35 @@ const FetchingDriver = ({ navigation, route }) => {
   const [pickupLocation, setPickupLocation] =
     useState(userLocation);
 
-  const [fare, setFare] =
-    useState(Number(baseFare) || 0);
+   const [currentRideData, setCurrentRideData] =
+    useState(rideData);
 
-  useEffect(() => {
 
-    if (
-      !pickupLocation ||
-      !destination ||
-      !userLocation
-    ) return;
+  const useCurrentLocation = async () => {
 
-    const originalDistance = getDistance(
-      userLocation.latitude,
-      userLocation.longitude,
-      destination.latitude,
-      destination.longitude
+    const location =
+      await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+
+
+    const newLocation = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    };
+
+    setPickupLocation(newLocation);
+
+    mapRef.current?.animateToRegion(
+      {
+        latitude: newLocation.latitude,
+        longitude: newLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      },
+      1000
     );
-
-    const newDistance = getDistance(
-      pickupLocation.latitude,
-      pickupLocation.longitude,
-      destination.latitude,
-      destination.longitude
-    );
-
-    const ratio =
-      originalDistance > 0
-        ? newDistance / originalDistance
-        : 1;
-
-    const updatedFare =
-      Math.round(baseFare * ratio);
-
-    setFare(updatedFare);
-
-  }, [
-    pickupLocation,
-    destination,
-    userLocation,
-    baseFare,
-  ]);
+  };
 
   useEffect(() => {
 
@@ -91,82 +76,97 @@ const FetchingDriver = ({ navigation, route }) => {
           destination,
         ],
         {
-          edgePadding: {
-            top: 100,
-            right: 50,
-            bottom: 250,
-            left: 50,
+          edgePadding:{
+            top:100,
+            right:50,
+            bottom:250,
+            left:50,
           },
-          animated: true,
+          animated:true,
         }
       );
+
     }
 
-  }, [pickupLocation, destination]);
-
-  const useCurrentLocation =
-    async () => {
-
-      const location =
-        await Location.getCurrentPositionAsync(
-          {
-            accuracy: Location.Accuracy.Highest,
-          }
-        );
-
-      setPickupLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      mapRef.current?.animateToRegion({
-  latitude: location.coords.latitude,
-  longitude: location.coords.longitude,
-  latitudeDelta: 0.01,
-  longitudeDelta: 0.01,
-}, 1000);
-    };
+  }, [
+    pickupLocation,
+    destination
+  ]);
 
   const confirmPickup = async () => {
 
-  const movedDistance = getDistance(
-    originalLocation.latitude,
-    originalLocation.longitude,
-    pickupLocation.latitude,
-    pickupLocation.longitude
-  );
+    const user = auth.currentUser;
+    
+    if (!user) {
+      console.log("No logged in user");
+      return;
+    }
 
-  console.log("Pickup moved:", movedDistance, "km");
 
-  let updatedRideData = rideData;
-
-  if (movedDistance > 0.5) {
-
-    const drivers = await getAvailableDrivers({
-      userLocation: pickupLocation,
-    });
-
-    const options = await generateRideOptions({
-      drivers,
-      userLocation: pickupLocation,
-      destination,
-    });
-
-    updatedRideData = options[selectedRide];
+    const clientId = user.uid;
 
     console.log(
-      "Driver matching recalculated"
+      "CLIENT ID:",
+      clientId
     );
-  }
 
-  navigation.navigate("SearchingDriver", {
-    pickupLocation,
-    destination,
-    selectedRide,
-    rideData: updatedRideData,
-  });
+    console.log("🔥 CONFIRM PICKUP CLICKED");
 
-};
+    try {
+
+      const matchDriver =
+        httpsCallable(
+          functions,
+          "matchDriver"
+        );
+
+      console.log("🔥 CALLING MATCH DRIVER");
+
+      const result =
+        await matchDriver({
+          userLocation: pickupLocation,
+          destination,
+          selectedRide,
+          clientId,
+        });
+
+
+      console.log(
+        "🔥 SERVER RESPONSE:",
+        result.data
+      );
+
+
+      const selectedData =
+        result.data.options[selectedRide];
+
+
+      navigation.navigate(
+        "SearchingDriver",
+        {
+          pickupLocation,
+          destination,
+          selectedRide,
+          rideData:{
+            ...selectedData,
+            requestId: result.data.requestId
+          }
+        }
+      );
+
+
+      console.log("🔥 NAVIGATION SENT");
+    } catch(error){
+
+      console.log(
+        "Matching error:",
+        error
+      );
+
+    }
+
+  };
+
   if (!pickupLocation) {
     return (
       <View style={styles.loading}>
@@ -205,16 +205,16 @@ const FetchingDriver = ({ navigation, route }) => {
         />
 
         {/* DESTINATION */}
-        {destination && (
+        {destination && 
           <Marker
             coordinate={destination}
             pinColor="green"
             title="Destination"
           />
-        )}
+        }
 
         {/* ROUTE */}
-        {destination && (
+        {destination && 
           <MapViewDirections
             origin={pickupLocation}
             destination={destination}
@@ -222,7 +222,7 @@ const FetchingDriver = ({ navigation, route }) => {
             strokeWidth={5}
             strokeColor="black"
           />
-        )}
+        }
 
       </MapView>
 
@@ -233,13 +233,17 @@ const FetchingDriver = ({ navigation, route }) => {
         </Text>
 
         <Text style={styles.subtitle}>
-          Drag the pickup pin if needed
+          Confirm pickup location
         </Text>
 
-        <Text style={styles.fare}>
-          Fare: TSh {fare.toLocaleString()}
-        </Text>
+        {
+          currentRideData?.fare &&
 
+          <Text style={styles.fare}>
+            Fare: TSh {currentRideData.fare.toLocaleString()}
+          </Text>
+
+        }
         <TouchableOpacity
           style={styles.locationButton}
           onPress={useCurrentLocation}

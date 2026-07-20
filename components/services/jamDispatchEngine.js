@@ -1,4 +1,4 @@
-import { getDistance } from "./getDistance";
+import { getDistance } from "../../functions/getDistance";
 
 export const runJamCompetition = ({
    drivers,
