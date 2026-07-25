@@ -1,29 +1,28 @@
 import { View, Text, StyleSheet, Image } from "react-native";
 import { useEffect, useState } from "react";
 import * as SplashScreen from "expo-splash-screen";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { auth } from "../firebase/firebase"; // Adjust path if necessary
 
 SplashScreen.preventAutoHideAsync();
 
 const stepImages = [
-    require("../assets/steps/step1.png"),
-    require("../assets/steps/step2.png"),
-    require("../assets/steps/step3.png"),
-    require("../assets/steps/step4.png"),
-    require("../assets/steps/step5.png"),
-    require("../assets/steps/step6.png"),
-    require("../assets/steps/step7.png"),
-    require("../assets/steps/step8.png"),
-  ];
+  require("../assets/steps/step1.png"),
+  require("../assets/steps/step2.png"),
+  require("../assets/steps/step3.png"),
+  require("../assets/steps/step4.png"),
+  require("../assets/steps/step5.png"),
+  require("../assets/steps/step6.png"),
+  require("../assets/steps/step7.png"),
+  require("../assets/steps/step8.png"),
+];
 
 export default function StepAnimationWithLogo({ navigation }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [showLogo, setShowLogo] = useState(false);
 
-  
-useEffect(() => {
-  SplashScreen.hideAsync();
-}, []);
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
 
   useEffect(() => {
     let current = 0;
@@ -32,45 +31,30 @@ useEffect(() => {
 
     const animateSteps = () => {
       setStepIndex(current);
-      console.log("STEP:", current);
-      stepTimer = setTimeout(() => {
 
+      stepTimer = setTimeout(() => {
         current++;
 
         if (current < stepImages.length) {
           animateSteps();
-
         } else {
-
-          // Show logo after last step
           setShowLogo(true);
-      
-          loginTimer = setTimeout(async () => {
 
+          loginTimer = setTimeout(async () => {
             await SplashScreen.hideAsync();
 
-            const userId = await AsyncStorage.getItem("userId");
-            const isFirstTime = await AsyncStorage.getItem("isFirstTime");
+            const user = auth.currentUser;
 
-            console.log("STARTUP USER:", userId);
-            console.log("STARTUP FIRST TIME:", isFirstTime);
+            console.log("AUTH USER:", user?.uid ?? null);
 
-
-            if (userId && isFirstTime === "false") {
-
-              navigation.replace("Home", {
-                userId
-              });
-
+            if (user) {
+              navigation.replace("Home");
             } else {
-
               navigation.replace("Login");
-
             }
-
           }, 1500);
         }
-      }, 300); // display each step for 0.3s
+      }, 300);
     };
 
     animateSteps();
@@ -79,7 +63,7 @@ useEffect(() => {
       clearTimeout(stepTimer);
       clearTimeout(loginTimer);
     };
-  }, []);
+  }, [navigation]);
 
   return (
     <View style={styles.container}>

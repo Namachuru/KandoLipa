@@ -9,14 +9,7 @@ import {
   Alert,
 } from "react-native";
 
-import {
-  signInWithPhoneNumber,
-} from "firebase/auth";
-
-import {
-  auth,
-} from "../firebase/firebase";
-
+import auth from "@react-native-firebase/auth";
 
 const Login = ({ navigation }) => {
 
@@ -66,13 +59,11 @@ const Login = ({ navigation }) => {
         formattedPhone
       );
 
-
       const confirmation =
-        await signInWithPhoneNumber(
-          auth,
-          formattedPhone
-        );
+        await auth().signInWithPhoneNumber(formattedPhone);
 
+      console.log("SMS request accepted.");
+      console.log(confirmation);
 
       navigation.navigate(
         "VerifyOTP",
@@ -84,7 +75,7 @@ const Login = ({ navigation }) => {
 
     } catch (error) {
 
-      console.log(
+      /*console.log(
         "PHONE LOGIN ERROR:",
         error
       );
@@ -93,9 +84,16 @@ const Login = ({ navigation }) => {
       Alert.alert(
         "Login Failed",
         error.message
+      );*/
+
+      console.log("CODE:", error.code);
+      console.log("MESSAGE:", error.message);
+      console.log("FULL ERROR:", error);
+
+      Alert.alert(
+        "Login Failed",
+        `${error.code}\n${error.message}`
       );
-
-
     } finally {
 
       setLoading(false);

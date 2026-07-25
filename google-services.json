@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "745437046606",
+    "firebase_url": "https://kandolipa-e839b-default-rtdb.firebaseio.com",
+    "project_id": "kandolipa-e839b",
+    "storage_bucket": "kandolipa-e839b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:745437046606:android:98a98e87d95ca31816e01f",
+        "android_client_info": {
+          "package_name": "com.reynold.kandolipa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpsUe8pHGi7ecJzqM7kYFNSzjr37zSnOw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

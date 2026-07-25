@@ -15,7 +15,6 @@ import {
 } from "firebase/database";
 
 import {
-  auth,
   lipaDb,
 } from "../firebase/firebase";
 
@@ -56,12 +55,15 @@ const VerifyOTP = ({ route, navigation }) => {
 
 
       const result =
-        confirmation.confirm(code);
+        await confirmation.confirm(code);
 
 
       const user =
         result.user;
 
+      if (!result?.user) {
+        throw new Error("Authentication failed.");
+      }
 
       const uid =
         user.uid;
