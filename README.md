@@ -1,50 +1,91 @@
-# Welcome to your Expo app 👋
+KandoLipa
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+KandoLipa is a React Native mobile application that connects passengers with nearby drivers for reliable transportation while providing secure payment and real-time ride management. The platform leverages Firebase services and Google Maps technologies to deliver a smooth ride-hailing experience from booking to trip completion.
 
-## Get started
+---
 
-1. Install dependencies
+Features
+- Phone number authentication with Firebase Authentication
+- Real-time ride matching engine
+- Live driver location tracking
+- Google Maps, Places API, and Directions API integration
+- Automatic fare calculation
+- Multiple vehicle categories
+- Driver availability management
+- Real-time trip status updates
+- Firebase-powered cloud backend
+- Clean and intuitive mobile interface
 
-   ```bash
-   npm install
-   ```
+---
 
-2. Start the app
+Tech Stack
 
-   ```bash
-   npx expo start
-   ```
+Frontend
+- React Native
+- Expo
+- JavaScript
 
-In the output, you'll find options to open the app in a
+Backend
+- Firebase Cloud Functions
+- Firebase Authentication
+- Firebase Realtime Database
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+APIs & Services
+- Google Maps API
+- Google Places API
+- Google Directions API
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+How It Works
+1. User signs in using phone number authentication.
+2. User selects pickup and destination locations.
+3. The application calculates available ride options and estimated fares.
+4. A nearby driver is matched using the ride matching engine.
+5. Both passenger and driver receive real-time trip updates.
+6. Navigation and trip progress are tracked until the ride is completed.
 
-When you're ready, run:
+---
 
-```bash
-npm run reset-project
-```
+Screenshots
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+1. Splash Screen
+2. Phone Authentication
+3. Home Screen
+4. Select Pickup & Destination
+5. Ride Options
+6. Searching for Driver
+7. Driver Assigned
+8. Trip in Progress
 
-## Learn more
+(Screenshots will be added as development progresses.)
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Problem It Solves
 
-## Join the community
+- Finding reliable transportation can be difficult during peak hours, and many existing ride-hailing platforms do not always provide transparent pricing or efficient driver allocation. KandoLipa addresses these challenges by using location-based matching, real-time GPS tracking, automated fare estimation, and cloud-powered dispatching to provide a reliable and user-friendly ride-hailing experience.
 
-Join our community of developers creating universal apps.
+---
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Status
+
+- Active Development - Core functionality has been implemented, including authentication, maps integration, ride matching, driver tracking, and cloud functions. Additional features, payment integration, and production refinements are currently in progress.
+
+---
+
+Author
+
+- Reynold Nangawe (Namachuru)
+
+---
+
+Future Improvements
+- Secure in-app payment integration
+- Ride history and digital receipts
+- Push notifications
+- Driver ratings and passenger feedback
+- Trip sharing with family and friends
+- Enhanced route optimization
+- Admin dashboard for fleet and trip management
+- Performance optimization and production deploymenttps://chat.expo.dev): Chat with Expo users and ask questions.
