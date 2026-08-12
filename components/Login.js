@@ -210,7 +210,25 @@ const Login = ({ navigation }) => {
         </Text>
 
       </TouchableOpacity>
-
+      
+      {__DEV__ && (
+  <TouchableOpacity
+    style={{
+      marginTop: 15,
+      backgroundColor: "#ff9800",
+      padding: 15,
+      borderRadius: 10,
+      alignItems: "center",
+    }}
+    onPress={() => {
+      navigation.replace("Home");
+    }}
+  >
+    <Text style={{ color: "#fff", fontWeight: "bold" }}>
+      Developer Login
+    </Text>
+  </TouchableOpacity>
+)}
 
     </View>
 

@@ -1,8 +1,7 @@
 import 'react-native-get-random-values';
 import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from "react-native";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "../firebase/firebase";
+import { lipaFunctions } from "../firebase/firebase";
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
@@ -18,12 +17,11 @@ const Taxi = ({ navigation }) => {
    city: null,
   });
   const [rideOptions, setRideOptions] = useState({});
-  const matchDriver = httpsCallable(functions, "matchDriver");
+  const matchDriver = lipaFunctions.httpsCallable("matchDriver");
   
   const mapRef = useRef(null);
   
   const GOOGLE_MAPS_APIKEY = Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
-  
   const [selectedRide, setSelectedRide] = useState(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
 
@@ -244,35 +242,35 @@ const Taxi = ({ navigation }) => {
 
   useEffect(() => {
 
-   console.log("region:", region);
-   console.log("destination:", destination);
-   console.log("userLocation:", userLocation);
+    console.log("region:", region);
+    console.log("destination:", destination);
+    console.log("userLocation:", userLocation);
 
-   const loadRides = async () => {
-  if (!userLocation || !destination) return;
+    const loadRides = async () => {
+      if (!userLocation || !destination) return;
 
-  try {
-    const result = await matchDriver({
-      userLocation: {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-      },
-      destination: {
-        latitude: destination.latitude,
-        longitude: destination.longitude,
-      },
-    });
+      try {
+        const result = await matchDriver({
+          userLocation: {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+          },
+          destination: {
+            latitude: destination.latitude,
+            longitude: destination.longitude,
+          },
+        });
 
-    console.log("Ride options:", result.data);
+        console.log("Ride options:", result.data);
 
-    setRideOptions(result.data);
+        setRideOptions(result.data);
 
-  } catch (err) {
-    console.error(err);
-  }
-};
+      } catch (err) {
+        console.error(err);
+      }
+    };
 
-   loadRides();
+    loadRides();
 
   }, [userLocation, destination]);
 

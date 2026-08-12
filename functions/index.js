@@ -58,16 +58,9 @@ exports.matchDriver = onCall(async (request) => {
       );
     }
 
-
-    // Firebase authenticated UID
-    const passengerId =
-      request.auth.uid;
-
-
     const {
       userLocation,
       destination,
-      selectedRide,
     } = request.data;
 
 
@@ -82,196 +75,33 @@ exports.matchDriver = onCall(async (request) => {
       );
     }
 
-
-    if (!selectedRide) {
-      throw new HttpsError(
-          "invalid-argument",
-          "Ride type is required",
-      );
-    }
-
-
     // -----------------------------
     // FIND DRIVERS
     // -----------------------------
 
-    const drivers =
-      await getAvailableDrivers(
-          userLocation,
-      );
-
-
-    const options =
-      await generateRideOptions({
-
-        drivers,
-
+    const drivers = await getAvailableDrivers(
         userLocation,
-
-        destination,
-
-      });
-
-
-    const selectedOption =
-      options[selectedRide];
-
-
-    if (!selectedOption) {
-      throw new HttpsError(
-          "not-found",
-          "Selected ride type unavailable",
-      );
-    }
-
-
-    const winner =
-      selectedOption.winner;
-
-
-    if (!winner) {
-      throw new HttpsError(
-          "not-found",
-          "No driver found",
-      );
-    }
-
-
-    console.log(
-        "🏆 WINNER:",
-        winner.full_name,
     );
 
+    console.log(`🚕 Drivers found: ${drivers.length}`);
 
     // -----------------------------
-    // CREATE RIDE REQUEST
+    // GENERATE RIDE OPTIONS
     // -----------------------------
 
-    const requestRef =
-      admin
-          .database()
-          .ref("KandoLipa/ride_requests")
-          .push();
+    const options = await generateRideOptions({
 
+      drivers,
 
-    const rideRequest = {
-
-      requestId:
-        requestRef.key,
-
-
-      passengerId,
-
-
-      driverId:
-        winner.mp_id,
-
-
-      type:
-        selectedRide,
-
-
-      pickup:
-        userLocation,
-
+      userLocation,
 
       destination,
 
+    });
 
-      fare:
-        selectedOption.fare,
+    console.log("✅ Ride options generated");
 
-
-      pickupEta:
-        selectedOption.pickupEta,
-
-
-      tripEta:
-        selectedOption.tripEta,
-
-
-      status:
-        "pending",
-
-
-      created_at:
-        Date.now(),
-
-    };
-
-
-    await requestRef.set(
-        rideRequest,
-    );
-
-
-    console.log(
-        "🚕 RIDE REQUEST CREATED:",
-        requestRef.key,
-    );
-
-
-    // -----------------------------
-    // NOTIFY DRIVER
-    // -----------------------------
-
-    await admin
-        .database()
-        .ref(
-            `KandoFaida/mobility_partners/
-            ${winner.mp_id}/ride_requests/
-            ${requestRef.key}`,
-        )
-        .set({
-
-          requestId:
-          requestRef.key,
-
-
-          passengerId,
-
-
-          pickup:
-          userLocation,
-
-
-          destination,
-
-
-          type:
-          selectedRide,
-
-
-          fare:
-          selectedOption.fare,
-
-
-          status:
-          "pending",
-
-
-          created_at:
-          Date.now(),
-
-        });
-
-
-    return {
-
-      requestId:
-        requestRef.key,
-
-
-      options,
-
-
-      selectedRide,
-
-
-      driverId:
-        winner.mp_id,
-
-    };
+    return options;
   } catch (error) {
     console.log(
         "MATCH DRIVER ERROR:",
@@ -285,6 +115,160 @@ exports.matchDriver = onCall(async (request) => {
 
         error.message,
 
+    );
+  }
+});
+
+exports.requestRide = onCall(async (request) => {
+  console.log("🔥 requestRide callable started");
+
+  try {
+    // -----------------------------
+    // AUTH CHECK
+    // -----------------------------
+    if (!request.auth) {
+      throw new HttpsError(
+          "unauthenticated",
+          "User must be logged in",
+      );
+    }
+
+    const passengerId = request.auth.uid;
+
+    const {
+      userLocation,
+      destination,
+      selectedRide,
+      rideData,
+    } = request.data;
+
+    // -----------------------------
+    // VALIDATION
+    // -----------------------------
+    if (!userLocation || !destination) {
+      throw new HttpsError(
+          "invalid-argument",
+          "Location and destination are required",
+      );
+    }
+
+    if (!selectedRide) {
+      throw new HttpsError(
+          "invalid-argument",
+          "Ride type is required",
+      );
+    }
+
+    if (!rideData) {
+      throw new HttpsError(
+          "invalid-argument",
+          "Ride data is required",
+      );
+    }
+
+    const winner = rideData.winner;
+
+    if (!winner) {
+      throw new HttpsError(
+          "not-found",
+          "No available driver",
+      );
+    }
+
+    console.log("🏆 WINNER:", winner.full_name);
+
+    // -----------------------------
+    // CREATE RIDE REQUEST
+    // -----------------------------
+    const requestRef = admin
+        .database()
+        .ref("KandoLipa/ride_requests")
+        .push();
+
+    const rideRequest = {
+      requestId: requestRef.key,
+
+      passengerId,
+
+      driverId: winner.mp_id,
+
+      type: selectedRide,
+
+      pickup: userLocation,
+
+      destination,
+
+      fare: rideData.fare,
+
+      pickupEta: rideData.pickupEta,
+
+      tripEta: rideData.tripEta,
+
+      status: "pending",
+
+      created_at: Date.now(),
+    };
+
+    await requestRef.set(rideRequest);
+
+    console.log(
+        "🚕 RIDE REQUEST CREATED:",
+        requestRef.key,
+    );
+
+    // -----------------------------
+    // NOTIFY DRIVER
+    // -----------------------------
+    await admin
+        .database()
+        .ref(
+            `KandoFaida/mobility_partners/${winner.mp_id}/` +
+            `ride_requests/${requestRef.key}`,
+        )
+        .set({
+          requestId: requestRef.key,
+
+          passengerId,
+
+          pickup: userLocation,
+
+          destination,
+
+          type: selectedRide,
+
+          fare: rideData.fare,
+
+          status: "pending",
+
+          created_at: Date.now(),
+        });
+
+    console.log("📨 Driver notified");
+
+    return {
+      success: true,
+
+      requestId: requestRef.key,
+
+      driverId: winner.mp_id,
+
+      selectedRide,
+
+      fare: rideData.fare,
+
+      pickupEta: rideData.pickupEta,
+
+      tripEta: rideData.tripEta,
+    };
+  } catch (error) {
+    console.log(
+        "REQUEST RIDE ERROR:",
+        error,
+    );
+
+    throw new HttpsError(
+        "internal",
+        error.message,
     );
   }
 });

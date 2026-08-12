@@ -10,11 +10,6 @@ import {
 } from "react-native";
 
 import {
-  ref,
-  get,
-} from "firebase/database";
-
-import {
   lipaDb,
 } from "../firebase/firebase";
 
@@ -86,15 +81,9 @@ const VerifyOTP = ({ route, navigation }) => {
       */
 
 
-      const passengerRef =
-        ref(
-          lipaDb,
-          `KandoLipa/passenger/${uid}`
-        );
-
-
-      const snapshot =
-        await get(passengerRef);
+      const snapshot = await lipaDb
+        .ref(`KandoLipa/passenger/${uid}`)
+        .once("value");
 
 
 

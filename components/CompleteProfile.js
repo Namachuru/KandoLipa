@@ -17,10 +17,10 @@ import {
 } from "firebase/database";
 
 import {
-  auth,
   lipaDb,
 } from "../firebase/firebase";
 
+import auth from "@react-native-firebase/auth";
 
 const CompleteProfile = ({ navigation }) => {
 
@@ -103,7 +103,7 @@ const CompleteProfile = ({ navigation }) => {
 
 
     const user =
-      auth.currentUser;
+      auth().currentUser;
 
 
 
@@ -307,8 +307,10 @@ const CompleteProfile = ({ navigation }) => {
 
   };
 
-
-
+  useEffect(() => {
+  console.log("CURRENT USER:", auth().currentUser);
+console.log("UID:", auth().currentUser?.uid);
+}, []);
   return (
 
     <View style={styles.container}>

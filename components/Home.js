@@ -1,12 +1,22 @@
 import React from "react";
-import { View, Text, Button, StyleSheet, Alert } from "react-native";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase/firebase"; // Adjust if needed
+
+import {
+  View,
+  Text,
+  Button,
+  StyleSheet,
+  Alert,
+} from "react-native";
+
+import auth from "@react-native-firebase/auth";
 
 const Home = ({ navigation }) => {
+
   const handleLogout = async () => {
+
     try {
-      await signOut(auth);
+
+      await auth().signOut();
 
       Alert.alert(
         "Signed Out",
@@ -14,32 +24,53 @@ const Home = ({ navigation }) => {
       );
 
       navigation.replace("Login");
+
     } catch (error) {
-      console.log("LOGOUT ERROR:", error);
-      Alert.alert("Error", error.message);
+
+      console.log(
+        "LOGOUT ERROR:",
+        error
+      );
+
+      Alert.alert(
+        "Error",
+        error.message
+      );
+
     }
+
   };
 
   return (
+
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to KandoLipa</Text>
+
+      <Text style={styles.title}>
+        Welcome to KandoLipa
+      </Text>
 
       <Button
         title="Shop"
         color="rgb(165,231,90)"
-        onPress={() => navigation.navigate("Shop")}
+        onPress={() =>
+          navigation.navigate("Shop")
+        }
       />
 
       <Button
         title="Real Estate"
         color="rgb(165,231,90)"
-        onPress={() => navigation.navigate("Real Estate")}
+        onPress={() =>
+          navigation.navigate("Real Estate")
+        }
       />
 
       <Button
         title="Taxi"
         color="rgb(165,231,90)"
-        onPress={() => navigation.navigate("Taxi")}
+        onPress={() =>
+          navigation.navigate("Taxi")
+        }
       />
 
       <Button
@@ -47,11 +78,15 @@ const Home = ({ navigation }) => {
         color="red"
         onPress={handleLogout}
       />
+
     </View>
+
   );
+
 };
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     justifyContent: "center",
@@ -59,12 +94,14 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: "rgb(255, 232, 94)",
   },
+
   title: {
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 20,
     color: "black",
   },
+
 });
 
 export default Home;

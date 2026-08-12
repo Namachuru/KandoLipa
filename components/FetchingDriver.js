@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
 } from "react-native";
 
+import auth from "@react-native-firebase/auth";
+
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../firebase/firebase";
-import { auth } from "../firebase/firebase";
 
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
@@ -32,9 +33,8 @@ const FetchingDriver = ({ navigation, route }) => {
   const [pickupLocation, setPickupLocation] =
     useState(userLocation);
 
-   const [currentRideData, setCurrentRideData] =
+  const [currentRideData, setCurrentRideData] =
     useState(rideData);
-
 
   const useCurrentLocation = async () => {
 
@@ -42,7 +42,6 @@ const FetchingDriver = ({ navigation, route }) => {
       await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Highest,
       });
-
 
     const newLocation = {
       latitude: location.coords.latitude,
@@ -76,13 +75,13 @@ const FetchingDriver = ({ navigation, route }) => {
           destination,
         ],
         {
-          edgePadding:{
-            top:100,
-            right:50,
-            bottom:250,
-            left:50,
+          edgePadding: {
+            top: 100,
+            right: 50,
+            bottom: 250,
+            left: 50,
           },
-          animated:true,
+          animated: true,
         }
       );
 
@@ -90,18 +89,20 @@ const FetchingDriver = ({ navigation, route }) => {
 
   }, [
     pickupLocation,
-    destination
+    destination,
   ]);
 
   const confirmPickup = async () => {
 
-    const user = auth.currentUser;
-    
-    if (!user) {
-      console.log("No logged in user");
-      return;
-    }
+    const user = auth().currentUser;
 
+    if (!user) {
+
+      console.log("No logged in user");
+
+      return;
+
+    }
 
     const clientId = user.uid;
 
@@ -130,16 +131,13 @@ const FetchingDriver = ({ navigation, route }) => {
           clientId,
         });
 
-
       console.log(
         "🔥 SERVER RESPONSE:",
         result.data
       );
 
-
       const selectedData =
         result.data.options[selectedRide];
-
 
       navigation.navigate(
         "SearchingDriver",
@@ -147,16 +145,16 @@ const FetchingDriver = ({ navigation, route }) => {
           pickupLocation,
           destination,
           selectedRide,
-          rideData:{
+          rideData: {
             ...selectedData,
-            requestId: result.data.requestId
-          }
+            requestId: result.data.requestId,
+          },
         }
       );
 
-
       console.log("🔥 NAVIGATION SENT");
-    } catch(error){
+
+    } catch (error) {
 
       console.log(
         "Matching error:",
@@ -168,30 +166,34 @@ const FetchingDriver = ({ navigation, route }) => {
   };
 
   if (!pickupLocation) {
+
     return (
+
       <View style={styles.loading}>
+
         <Text>Loading map...</Text>
+
       </View>
+
     );
+
   }
 
   return (
+
     <View style={styles.container}>
 
       <MapView
         ref={mapRef}
         style={styles.map}
         initialRegion={{
-          latitude:
-            pickupLocation.latitude,
-          longitude:
-            pickupLocation.longitude,
+          latitude: pickupLocation.latitude,
+          longitude: pickupLocation.longitude,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         }}
       >
 
-        {/* PICKUP */}
         <Marker
           draggable
           coordinate={pickupLocation}
@@ -204,17 +206,15 @@ const FetchingDriver = ({ navigation, route }) => {
           }
         />
 
-        {/* DESTINATION */}
-        {destination && 
+        {destination && (
           <Marker
             coordinate={destination}
             pinColor="green"
             title="Destination"
           />
-        }
+        )}
 
-        {/* ROUTE */}
-        {destination && 
+        {destination && (
           <MapViewDirections
             origin={pickupLocation}
             destination={destination}
@@ -222,7 +222,7 @@ const FetchingDriver = ({ navigation, route }) => {
             strokeWidth={5}
             strokeColor="black"
           />
-        }
+        )}
 
       </MapView>
 
@@ -236,30 +236,34 @@ const FetchingDriver = ({ navigation, route }) => {
           Confirm pickup location
         </Text>
 
-        {
-          currentRideData?.fare &&
+        {currentRideData?.fare && (
 
           <Text style={styles.fare}>
             Fare: TSh {currentRideData.fare.toLocaleString()}
           </Text>
 
-        }
+        )}
+
         <TouchableOpacity
           style={styles.locationButton}
           onPress={useCurrentLocation}
         >
+
           <Text style={styles.buttonText}>
             My Location
           </Text>
+
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.confirmButton}
           onPress={confirmPickup}
         >
+
           <Text style={styles.buttonText}>
             Confirm Pickup
           </Text>
+
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -268,18 +272,23 @@ const FetchingDriver = ({ navigation, route }) => {
             navigation.navigate("Home")
           }
         >
+
           <Text style={styles.buttonText}>
             ⬅ Back Home
           </Text>
+
         </TouchableOpacity>
 
       </View>
 
     </View>
+
   );
+
 };
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
   },
@@ -347,6 +356,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontWeight: "bold",
   },
+
 });
 
 export default FetchingDriver;

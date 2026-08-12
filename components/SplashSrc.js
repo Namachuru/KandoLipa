@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Image } from "react-native";
 import { useEffect, useState } from "react";
 import * as SplashScreen from "expo-splash-screen";
-import { auth } from "../firebase/firebase"; // Adjust path if necessary
+import auth from "@react-native-firebase/auth";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,16 +41,22 @@ export default function StepAnimationWithLogo({ navigation }) {
           setShowLogo(true);
 
           loginTimer = setTimeout(async () => {
-            await SplashScreen.hideAsync();
+            console.log("1. Login timer fired");
 
-            const user = auth.currentUser;
+            try {
+              console.log("2. Before hideAsync");
+              await SplashScreen.hideAsync();
+              const user = auth().currentUser;
 
-            console.log("AUTH USER:", user?.uid ?? null);
+              console.log("CURRENT USER:", user?.uid ?? null);
 
-            if (user) {
-              navigation.replace("Home");
-            } else {
-              navigation.replace("Login");
+              if (user) {
+                navigation.replace("Home");
+              } else {
+                navigation.replace("Login");
+              }
+            } catch (e) {
+              console.error("LOGIN ERROR:", e);
             }
           }, 1500);
         }
