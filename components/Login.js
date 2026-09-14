@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, {useState} from "react";
 
 import {
   View,
@@ -11,7 +11,19 @@ import {
 
 import auth from "@react-native-firebase/auth";
 
-const Login = ({ navigation }) => {
+import {
+  setPhoneConfirmation,
+} from "../firebase/phoneAuth";
+
+import {
+  ref,
+  set,
+} from "@react-native-firebase/database";
+
+import {lipaDb} from "../firebase/firebase";
+
+
+const Login = ({navigation}) => {
 
   const [phoneNumber, setPhoneNumber] =
     useState("");
@@ -20,18 +32,136 @@ const Login = ({ navigation }) => {
     useState(false);
 
 
+  // ==================================================
+  // SEND OTP
+  // ==================================================
+
   const sendOTP = async () => {
 
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
+    const cleanedNumber =
+      phoneNumber.replace(/\D/g, "");
 
-    if (!phoneNumber.trim()) {
+    // Tanzania phone number validation
+
+    if (!/^0\d{9}$/.test(cleanedNumber)) {
 
       Alert.alert(
-        "Phone Number Required",
-        "Please enter your phone number."
+        "Invalid Phone Number",
+        "Please enter a valid Tanzanian phone number.\n\nExample: 0712345678"
       );
 
+      return;
+    }
+
+    // Convert 0712345678 → +255712345678
+
+    const formattedPhone =
+      `+255${cleanedNumber.substring(1)}`;
+
+
+    try {
+
+      setLoading(true);
+
+      console.log(
+        "📱 PHONE NUMBER ENTERED:",
+        cleanedNumber
+      );
+
+      console.log(
+        "🌍 FORMATTED PHONE NUMBER:",
+        formattedPhone
+      );
+
+      console.log(
+        "📤 CALLING FIREBASE signInWithPhoneNumber..."
+      );
+
+
+      const confirmation =
+        await auth().signInWithPhoneNumber(
+          formattedPhone
+        );
+
+
+      console.log(
+        "📥 FIREBASE signInWithPhoneNumber RETURNED"
+      );
+
+      console.log(
+        "✅ SMS REQUEST ACCEPTED"
+      );
+
+
+      // Store confirmation outside navigation
+      // so React Navigation does not complain
+      // about non-serializable Firebase objects.
+
+      setPhoneConfirmation(
+        confirmation
+      );
+
+
+      // Go to OTP screen
+
+      navigation.navigate(
+        "VerifyOTP"
+      );
+
+
+    } catch (error) {
+
+      console.log(
+        "❌ PHONE LOGIN ERROR:",
+        error
+      );
+
+      console.log(
+        "❌ ERROR CODE:",
+        error?.code
+      );
+
+      console.log(
+        "❌ ERROR MESSAGE:",
+        error?.message
+      );
+
+
+      Alert.alert(
+        "Login Failed",
+        `${error?.code || "unknown"}\n${
+          error?.message ||
+          "Unable to send verification code."
+        }`
+      );
+
+
+    } finally {
+
+      setLoading(false);
+
+    }
+  };
+
+
+  // ==================================================
+  // DEVELOPMENT LOGIN
+  //
+  // DEVELOPMENT ONLY
+  //
+  // Creates a Firebase anonymous user and a
+  // default KandoLipa client record.
+  //
+  // REMOVE BEFORE PRODUCTION.
+  // ==================================================
+
+  const developerLogin = async () => {
+
+    if (loading) {
       return;
     }
 
@@ -41,59 +171,219 @@ const Login = ({ navigation }) => {
       setLoading(true);
 
 
-      // Tanzania example:
-      // 0712345678 becomes +255712345678
-
-      let formattedPhone =
-        phoneNumber
-          .replace(/\D/g, "")
-          .replace(/^0/, "");
+      console.log(
+        "🧪 DEVELOPMENT LOGIN STARTED"
+      );
 
 
-      formattedPhone =
-        `+255${formattedPhone}`;
+      // ------------------------------------------------
+      // GET CURRENT FIREBASE USER
+      // ------------------------------------------------
+
+      let user =
+        auth().currentUser;
+
+
+      // ------------------------------------------------
+      // CREATE ANONYMOUS USER IF NONE EXISTS
+      // ------------------------------------------------
+
+      if (!user) {
+
+        console.log(
+          "🧪 Creating anonymous Firebase user..."
+        );
+
+
+        const result =
+          await auth().signInAnonymously();
+
+
+        user =
+          result.user;
+
+      }
+
+
+      if (!user) {
+
+        throw new Error(
+          "Firebase did not return a user."
+        );
+
+      }
+
+
+      const uid =
+        user.uid;
 
 
       console.log(
-        "Sending OTP to:",
-        formattedPhone
+        "🧪 DEVELOPMENT UID:",
+        uid
       );
 
-      const confirmation =
-        await auth().signInWithPhoneNumber(formattedPhone);
 
-      console.log("SMS request accepted.");
-      console.log(confirmation);
+      // ==================================================
+      // DEFAULT CLIENT DATA
+      // ==================================================
 
-      navigation.navigate(
-        "VerifyOTP",
-        {
-          confirmation,
-        }
+      const clientData = {
+
+        // Firebase Authentication UID
+
+        userId:
+          uid,
+
+
+        // Default name
+
+        firstName:
+          "Test",
+
+
+        lastName:
+          "Client",
+
+
+        // Development phone
+
+        phoneNumber:
+          "+255700000000",
+
+
+        // No email required
+
+        email:
+          "",
+
+
+        // No location yet
+
+        homeLocation:
+          null,
+
+
+        currentLocation:
+          null,
+
+
+        // Client starts offline
+
+        isOnline:
+          false,
+
+
+        // No active ride
+
+        activeRequestId:
+          null,
+
+
+        activeTripId:
+          null,
+
+
+        // Wallet starts at zero
+
+        walletBalance:
+          0,
+
+
+        // Trip statistics
+
+        totalTrips:
+          0,
+
+
+        completedTrips:
+          0,
+
+
+        cancelledTrips:
+          0,
+
+
+        // Timestamps
+
+        createdAt:
+          Date.now(),
+
+
+        updatedAt:
+          Date.now(),
+
+      };
+
+
+      // ==================================================
+      // SAVE CLIENT
+      //
+      // KandoLipa
+      // └── clients
+      //     └── {uid}
+      // ==================================================
+
+      const clientRef =
+        ref(
+          lipaDb,
+          `KandoLipa/clients/${uid}`
+        );
+
+
+      await set(
+        clientRef,
+        clientData
+      );
+
+
+      console.log(
+        "✅ DEFAULT CLIENT PROFILE CREATED"
+      );
+
+
+      console.log(
+        "🆔 CLIENT UID:",
+        uid
+      );
+
+
+      console.log(
+        "📦 CLIENT DATA:",
+        clientData
+      );
+
+
+      // ==================================================
+      // GO DIRECTLY TO HOME
+      // ==================================================
+
+      navigation.replace(
+        "Home"
       );
 
 
     } catch (error) {
 
-      /*console.log(
-        "PHONE LOGIN ERROR:",
+      console.log(
+        "❌ DEVELOPMENT LOGIN ERROR:",
         error
       );
 
 
-      Alert.alert(
-        "Login Failed",
-        error.message
-      );*/
-
-      console.log("CODE:", error.code);
-      console.log("MESSAGE:", error.message);
-      console.log("FULL ERROR:", error);
-
-      Alert.alert(
-        "Login Failed",
-        `${error.code}\n${error.message}`
+      console.log(
+        "❌ ERROR CODE:",
+        error?.code
       );
+
+
+      Alert.alert(
+        "Developer Login Failed",
+        error?.message ||
+          "Unable to create development user."
+      );
+
+
     } finally {
 
       setLoading(false);
@@ -102,6 +392,10 @@ const Login = ({ navigation }) => {
 
   };
 
+
+  // ==================================================
+  // UI
+  // ==================================================
 
   return (
 
@@ -118,12 +412,11 @@ const Login = ({ navigation }) => {
       </Text>
 
 
-
       <TextInput
 
         style={styles.input}
 
-        placeholder="Phone Number"
+        placeholder="0712345678"
 
         keyboardType="phone-pad"
 
@@ -133,13 +426,26 @@ const Login = ({ navigation }) => {
 
         maxLength={10}
 
+        editable={!loading}
+
+        autoCapitalize="none"
+
+        autoCorrect={false}
+
       />
 
 
+      {/* ==================================================
+          NORMAL PHONE LOGIN
+      ================================================== */}
 
       <TouchableOpacity
 
-        style={styles.button}
+        style={[
+          styles.button,
+          loading &&
+            styles.buttonDisabled,
+        ]}
 
         onPress={sendOTP}
 
@@ -149,86 +455,50 @@ const Login = ({ navigation }) => {
 
         <Text style={styles.buttonText}>
 
-          {
-            loading
+          {loading
             ? "Sending..."
-            : "Continue"
+            : "Continue"}
+
+        </Text>
+
+      </TouchableOpacity>
+
+
+      {/* ==================================================
+          DEVELOPMENT LOGIN
+      ================================================== */}
+
+      {__DEV__ && (
+
+        <TouchableOpacity
+
+          style={
+            styles.developerButton
           }
 
-        </Text>
+          onPress={
+            developerLogin
+          }
 
-      </TouchableOpacity>
+          disabled={loading}
 
+        >
 
+          <Text
+            style={
+              styles.developerButtonText
+            }
+          >
 
-      <View style={styles.divider}>
+            {loading
+              ? "Creating..."
+              : "Developer Login"}
 
-        <Text>
-          OR
-        </Text>
+          </Text>
 
-      </View>
+        </TouchableOpacity>
 
-
-
-      <TouchableOpacity
-
-        style={styles.googleButton}
-
-        onPress={() =>
-          Alert.alert(
-            "Google Login",
-            "Google login will be added next."
-          )
-        }
-
-      >
-
-        <Text style={styles.googleText}>
-          Continue with Google
-        </Text>
-
-      </TouchableOpacity>
-
-
-
-      <TouchableOpacity
-
-        style={styles.facebookButton}
-
-        onPress={() =>
-          Alert.alert(
-            "Facebook Login",
-            "Facebook login will be added later."
-          )
-        }
-
-      >
-
-        <Text style={styles.facebookText}>
-          Continue with Facebook
-        </Text>
-
-      </TouchableOpacity>
-      
-      {__DEV__ && (
-  <TouchableOpacity
-    style={{
-      marginTop: 15,
-      backgroundColor: "#ff9800",
-      padding: 15,
-      borderRadius: 10,
-      alignItems: "center",
-    }}
-    onPress={() => {
-      navigation.replace("Home");
-    }}
-  >
-    <Text style={{ color: "#fff", fontWeight: "bold" }}>
-      Developer Login
-    </Text>
-  </TouchableOpacity>
-)}
+      )}
 
     </View>
 
@@ -240,94 +510,104 @@ const Login = ({ navigation }) => {
 export default Login;
 
 
+// ======================================================
+// STYLES
+// ======================================================
 
 const styles = StyleSheet.create({
 
-  container:{
-    flex:1,
-    justifyContent:"center",
-    padding:20,
-    backgroundColor:"#FFF2A0",
+  container: {
+    flex: 1,
+
+    justifyContent: "center",
+
+    padding: 20,
+
+    backgroundColor: "#FFF2A0",
   },
 
 
-  title:{
-    fontSize:28,
-    fontWeight:"bold",
-    textAlign:"center",
-    marginBottom:10,
+  title: {
+    fontSize: 28,
+
+    fontWeight: "bold",
+
+    textAlign: "center",
+
+    marginBottom: 10,
   },
 
 
-  subtitle:{
-    textAlign:"center",
-    marginBottom:30,
-    opacity:0.7,
+  subtitle: {
+    textAlign: "center",
+
+    marginBottom: 30,
+
+    opacity: 0.7,
   },
 
 
-  input:{
-    backgroundColor:"#fff",
-    borderWidth:1,
-    borderColor:"#ddd",
-    borderRadius:10,
-    padding:15,
-    fontSize:18,
-    marginBottom:20,
+  input: {
+    backgroundColor: "#fff",
+
+    borderWidth: 1,
+
+    borderColor: "#ddd",
+
+    borderRadius: 10,
+
+    padding: 15,
+
+    fontSize: 18,
+
+    marginBottom: 20,
   },
 
 
-  button:{
-    backgroundColor:"#22c55e",
-    padding:16,
-    borderRadius:10,
-    alignItems:"center",
+  button: {
+    backgroundColor: "#22c55e",
+
+    padding: 16,
+
+    borderRadius: 10,
+
+    alignItems: "center",
   },
 
 
-  buttonText:{
-    color:"#fff",
-    fontWeight:"bold",
-    fontSize:17,
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
 
-  divider:{
-    alignItems:"center",
-    marginVertical:25,
+  buttonText: {
+    color: "#fff",
+
+    fontWeight: "bold",
+
+    fontSize: 17,
   },
 
 
-  googleButton:{
-    backgroundColor:"#fff",
-    padding:15,
-    borderRadius:10,
-    alignItems:"center",
-    marginBottom:12,
-    borderWidth:1,
-    borderColor:"#ddd",
+  developerButton: {
+    marginTop: 20,
+
+    backgroundColor: "#f59e0b",
+
+    padding: 14,
+
+    borderRadius: 10,
+
+    alignItems: "center",
   },
 
 
-  googleText:{
-    fontWeight:"bold",
-    fontSize:16,
+  developerButtonText: {
+    color: "#fff",
+
+    fontWeight: "bold",
+
+    fontSize: 16,
   },
-
-
-  facebookButton:{
-    backgroundColor:"#1877F2",
-    padding:15,
-    borderRadius:10,
-    alignItems:"center",
-  },
-
-
-  facebookText:{
-    color:"#fff",
-    fontWeight:"bold",
-    fontSize:16,
-  },
-
 
 });

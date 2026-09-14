@@ -42,5 +42,8 @@ app-example
 /ios
 /android
 
+# Google Services credentials
+google-services.json
+
 # Firebase service account credentials
 functions/*service-account*.json

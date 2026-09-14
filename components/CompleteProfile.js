@@ -262,7 +262,7 @@ const CompleteProfile = ({ navigation }) => {
 
         ref(
           lipaDb,
-          `KandoLipa/passenger/${uid}`
+          `KandoLipa/clients/${uid}`
         ),
 
         passengerData

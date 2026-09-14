@@ -1,6 +1,12 @@
 import 'react-native-get-random-values';
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, Animated } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+} from "react-native";
 import { lipaFunctions } from "../firebase/firebase";
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
@@ -13,197 +19,347 @@ const Taxi = ({ navigation }) => {
   const [destination, setDestination] = useState(null);
   const [rideFor, setRideFor] = useState("me");
   const [region, setRegion] = useState({
-   countryCode: null,
-   city: null,
+    countryCode: null,
+    city: null,
   });
   const [rideOptions, setRideOptions] = useState({});
-  const matchDriver = lipaFunctions.httpsCallable("matchDriver");
-  
-  const mapRef = useRef(null);
-  
-  const GOOGLE_MAPS_APIKEY = Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
   const [selectedRide, setSelectedRide] = useState(null);
-  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  const matchDriver = lipaFunctions.httpsCallable("matchDriver");
+
+  const mapRef = useRef(null);
+
+  const GOOGLE_MAPS_APIKEY =
+    Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
+
+  /*
+   * ---------------------------------------------------------
+   * ANIMATION STATE
+   * ---------------------------------------------------------
+   *
+   * Mchoro:
+   * 1 -> 2 -> 1
+   * This represents trying to start the engine.
+   *
+   * Then:
+   * 3 <-> 4
+   * These are the moving-wheel frames.
+   *
+   * Roka:
+   * 1 -> 2 -> 3 -> 4
+   * This represents starting the engine.
+   *
+   * Then:
+   * 5 <-> 6
+   * These are the moving-wheel frames.
+   *
+   * Wea / Zoa:
+   * 1 <-> 2
+   * They animate while waiting for the Roka start
+   * sequence to finish.
+   */
 
   const [mchoroFrame, setMchoroFrame] = useState(1);
   const [rokaFrame, setRokaFrame] = useState(1);
   const [weaFrame, setWeaFrame] = useState(1);
   const [zoaFrame, setZoaFrame] = useState(1);
 
+  /*
+   * Roka starting sequence duration.
+   *
+   * 1 -> 2 -> 3 -> 4
+   *
+   * Each frame lasts 300ms.
+   * Total startup time = 1200ms.
+   */
+  const ROKA_START_TIME = 1200;
+
+  /*
+   * Vehicle movement duration after startup.
+   */
+  const VEHICLE_EXIT_DURATION = 1800;
+
+  /*
+   * Animation refs.
+   * These allow us to clean up timers when the component
+   * unmounts or when another ride is selected.
+   */
+  const animationTimers = useRef([]);
+  const animationIntervals = useRef([]);
+
+  const clearAnimations = () => {
+    animationTimers.current.forEach((timer) => {
+      clearTimeout(timer);
+    });
+
+    animationIntervals.current.forEach((interval) => {
+      clearInterval(interval);
+    });
+
+    animationTimers.current = [];
+    animationIntervals.current = [];
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * NAVIGATE TO FETCHING DRIVER
+   * ---------------------------------------------------------
+   */
+  const goToFetchingDriver = (type) => {
+    navigation.navigate("FetchingDriver", {
+      userLocation,
+      destination,
+      selectedRide: type,
+      rideData: rideOptions[type],
+      baseFare: rideOptions[type]?.fare,
+    });
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * HANDLE RIDE PRESS
+   * ---------------------------------------------------------
+   */
   const handleRidePress = (type) => {
+    clearAnimations();
 
     setSelectedRide(type);
 
+    /*
+     * Reset every vehicle to its first frame.
+     */
+    setMchoroFrame(1);
+    setRokaFrame(1);
+    setWeaFrame(1);
+    setZoaFrame(1);
+
+    /*
+     * Reset slide position.
+     */
+    slideAnim.setValue(0);
+
+    /*
+     * -------------------------------------------------------
+     * MCHORO
+     * -------------------------------------------------------
+     *
+     * Start:
+     * mchoro -> mchoro2 -> mchoro
+     *
+     * Then wait until the Roka startup duration is finished.
+     *
+     * After that:
+     * mchoro3 <-> mchoro4
+     *
+     * while the vehicle moves off screen.
+     */
     if (type === "Mchoro") {
+      setMchoroFrame(1);
 
-      setMchoroFrame(2);
+      const timer1 = setTimeout(() => {
+        setMchoroFrame(2);
+      }, 300);
 
-        setTimeout(() => {
-          setMchoroFrame(3);
-        }, 120);
+      const timer2 = setTimeout(() => {
+        setMchoroFrame(1);
+      }, 600);
 
-        setTimeout(() => {
-          setMchoroFrame(4);
-        }, 240);
+      const timer3 = setTimeout(() => {
+        setMchoroFrame(3);
 
         const wheelLoop = setInterval(() => {
+          setMchoroFrame((prev) => (prev === 3 ? 4 : 3));
+        }, 150);
 
-          setMchoroFrame(prev => (
-            prev === 3 ? 4 : 3
-          ));
-
-        }, 120);
+        animationIntervals.current.push(wheelLoop);
 
         Animated.timing(slideAnim, {
           toValue: 500,
-          duration: 1800,
+          duration: VEHICLE_EXIT_DURATION,
           useNativeDriver: true,
         }).start(() => {
-
-        clearInterval(wheelLoop);
-
-        navigation.navigate("FetchingDriver", {
-          userLocation,
-          destination,
-          selectedRide: type,
-          rideData: rideOptions[type],
-          baseFare: rideOptions[type]?.fare,
+          clearInterval(wheelLoop);
+          goToFetchingDriver(type);
         });
-      });
+      }, ROKA_START_TIME);
+
+      animationTimers.current.push(timer1, timer2, timer3);
     }
+
+    /*
+     * -------------------------------------------------------
+     * ROKA
+     * -------------------------------------------------------
+     *
+     * Start:
+     * roka -> roka2 -> roka3 -> roka4
+     *
+     * Roka does NOT move during these frames.
+     *
+     * After roka4:
+     * roka5 <-> roka6
+     *
+     * Then it moves off screen.
+     */
     else if (type === "Roka") {
+      setRokaFrame(1);
 
-      setRokaFrame(2);
+      const timer1 = setTimeout(() => {
+        setRokaFrame(2);
+      }, 300);
 
-        setTimeout(() => {
-          setRokaFrame(3);
-        }, 120);
+      const timer2 = setTimeout(() => {
+        setRokaFrame(3);
+      }, 600);
 
-        setTimeout(() => {
-          setRokaFrame(4);
-        }, 240);
+      const timer3 = setTimeout(() => {
+        setRokaFrame(4);
+      }, 900);
 
-        setTimeout(() => {
-          setRokaFrame(4);
-        }, 240);
+      const timer4 = setTimeout(() => {
+        setRokaFrame(5);
 
         const wheelLoop = setInterval(() => {
+          setRokaFrame((prev) => (prev === 5 ? 6 : 5));
+        }, 150);
 
-          setRokaFrame(prev => (
-            prev === 4 ? 5 : 4
-          ));
-
-        }, 120);
+        animationIntervals.current.push(wheelLoop);
 
         Animated.timing(slideAnim, {
           toValue: 500,
-          duration: 1800,
+          duration: VEHICLE_EXIT_DURATION,
           useNativeDriver: true,
         }).start(() => {
-
-        clearInterval(wheelLoop);
-
-        navigation.navigate("FetchingDriver", {
-          userLocation,
-          destination,
-          selectedRide: type,
-          rideData: rideOptions[type],
-          baseFare: rideOptions[type]?.fare,
+          clearInterval(wheelLoop);
+          goToFetchingDriver(type);
         });
-      });
+      }, ROKA_START_TIME);
+
+      animationTimers.current.push(
+        timer1,
+        timer2,
+        timer3,
+        timer4
+      );
     }
-    if (type === "Wea") {
 
-      setWeaFrame(2);
+    /*
+     * -------------------------------------------------------
+     * WEA
+     * -------------------------------------------------------
+     *
+     * Wea does not have a starting-engine animation.
+     *
+     * It remains in:
+     * wea <-> wea2
+     *
+     * for the same amount of time it takes Roka to start.
+     *
+     * After that it moves off screen.
+     */
+    else if (type === "Wea") {
+      setWeaFrame(1);
 
-        setTimeout(() => {
-          setWeaFrame(3);
-        }, 120);
+      const wheelLoop = setInterval(() => {
+        setWeaFrame((prev) => (prev === 1 ? 2 : 1));
+      }, 150);
 
-        setTimeout(() => {
-          setWeaFrame(4);
-        }, 240);
+      animationIntervals.current.push(wheelLoop);
 
-        const wheelLoop = setInterval(() => {
-
-          setWeaFrame(prev => (
-            prev === 3 ? 4 : 3
-          ));
-
-        }, 120);
+      const timer = setTimeout(() => {
+        clearInterval(wheelLoop);
 
         Animated.timing(slideAnim, {
           toValue: 500,
-          duration: 1800,
+          duration: VEHICLE_EXIT_DURATION,
           useNativeDriver: true,
         }).start(() => {
-
-        clearInterval(wheelLoop);
-
-        navigation.navigate("FetchingDriver", {
-          userLocation,
-          destination,
-          selectedRide: type,
-          rideData: rideOptions[type],
-          baseFare: rideOptions[type]?.fare,
+          goToFetchingDriver(type);
         });
-      });
+      }, ROKA_START_TIME);
+
+      animationTimers.current.push(timer);
     }
-    if (type === "Zoa") {
 
-      setZoaFrame(2);
+    /*
+     * -------------------------------------------------------
+     * ZOA
+     * -------------------------------------------------------
+     *
+     * Same behaviour as Wea:
+     *
+     * zoa <-> zoa2
+     *
+     * while waiting for the Roka startup duration.
+     *
+     * Then move off screen.
+     */
+    else if (type === "Zoa") {
+      setZoaFrame(1);
 
-        setTimeout(() => {
-          setZoaFrame(3);
-        }, 120);
+      const wheelLoop = setInterval(() => {
+        setZoaFrame((prev) => (prev === 1 ? 2 : 1));
+      }, 150);
 
-        setTimeout(() => {
-          setZoaFrame(4);
-        }, 240);
+      animationIntervals.current.push(wheelLoop);
 
-        const wheelLoop = setInterval(() => {
-
-          setZoaFrame(prev => (
-            prev === 3 ? 4 : 3
-          ));
-
-        }, 120);
+      const timer = setTimeout(() => {
+        clearInterval(wheelLoop);
 
         Animated.timing(slideAnim, {
           toValue: 500,
-          duration: 1800,
+          duration: VEHICLE_EXIT_DURATION,
           useNativeDriver: true,
         }).start(() => {
-
-        clearInterval(wheelLoop);
-
-        navigation.navigate("FetchingDriver", {
-          userLocation,
-          destination,
-          selectedRide: type,
-          rideData: rideOptions[type],
-          baseFare: rideOptions[type]?.fare,
+          goToFetchingDriver(type);
         });
-      });
+      }, ROKA_START_TIME);
+
+      animationTimers.current.push(timer);
     }
   };
-  
-  // Fetch user location
+
+  /*
+   * ---------------------------------------------------------
+   * SLIDE ANIMATION
+   * ---------------------------------------------------------
+   */
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  /*
+   * Cleanup animations when Taxi screen is removed.
+   */
+  useEffect(() => {
+    return () => {
+      clearAnimations();
+      slideAnim.stopAnimation();
+    };
+  }, []);
+
+  /*
+   * ---------------------------------------------------------
+   * GET USER LOCATION
+   * ---------------------------------------------------------
+   */
   useEffect(() => {
     const getLocation = async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } =
+        await Location.requestForegroundPermissionsAsync();
 
       if (status !== "granted") {
         alert("Permission denied");
         return;
       }
 
-      let location = await Location.getCurrentPositionAsync({
-  accuracy: Location.Accuracy.BestForNavigation,
-});
+      const location =
+        await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.BestForNavigation,
+        });
+
       setUserLocation(location.coords);
 
-      const geocode = await Location.reverseGeocodeAsync(location.coords);
+      const geocode =
+        await Location.reverseGeocodeAsync(location.coords);
 
       console.log("GEOCODE:", geocode);
 
@@ -211,7 +367,6 @@ const Taxi = ({ navigation }) => {
         setRegion({
           countryCode:
             geocode[0].isoCountryCode?.toLowerCase(),
-          
           city:
             geocode[0].city ||
             geocode[0].subregion ||
@@ -223,6 +378,11 @@ const Taxi = ({ navigation }) => {
     getLocation();
   }, []);
 
+  /*
+   * ---------------------------------------------------------
+   * FIT MAP TO USER + DESTINATION
+   * ---------------------------------------------------------
+   */
   useEffect(() => {
     if (userLocation && destination && mapRef.current) {
       mapRef.current.fitToCoordinates(
@@ -240,8 +400,12 @@ const Taxi = ({ navigation }) => {
     }
   }, [destination, userLocation]);
 
+  /*
+   * ---------------------------------------------------------
+   * LOAD RIDE OPTIONS
+   * ---------------------------------------------------------
+   */
   useEffect(() => {
-
     console.log("region:", region);
     console.log("destination:", destination);
     console.log("userLocation:", userLocation);
@@ -264,30 +428,45 @@ const Taxi = ({ navigation }) => {
         console.log("Ride options:", result.data);
 
         setRideOptions(result.data);
-
       } catch (err) {
         console.error(err);
       }
     };
 
     loadRides();
-
   }, [userLocation, destination]);
 
-  const isLoading = !userLocation || !region.countryCode;
-  
+  const isLoading =
+    !userLocation || !region.countryCode;
+
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
         <Text>Loading location...</Text>
       </View>
     );
   }
-  console.log("RIDE OPTIONS KEYS:", Object.keys(rideOptions));
-  console.log("RIDE OPTIONS STATE:", rideOptions);
+
+  console.log(
+    "RIDE OPTIONS KEYS:",
+    Object.keys(rideOptions)
+  );
+
+  console.log(
+    "RIDE OPTIONS STATE:",
+    rideOptions
+  );
+
   return (
     <View style={styles.container}>
-      {/* ✅ Map */}
+
+      {/* MAP */}
       {userLocation && (
         <MapView
           ref={mapRef}
@@ -304,10 +483,10 @@ const Taxi = ({ navigation }) => {
             title="You are here"
           />
 
-          {/* DESTINATION MARKER */}
-          {destination && <Marker coordinate={destination} />}
+          {destination && (
+            <Marker coordinate={destination} />
+          )}
 
-          {/* ROUTE LINE */}
           {userLocation && destination && (
             <MapViewDirections
               origin={userLocation}
@@ -332,10 +511,12 @@ const Taxi = ({ navigation }) => {
 
           onPress={(data, details = null) => {
             console.log("PLACE SELECTED", data);
+
             if (!details) {
               console.log("NO DETAILS");
               return;
             }
+
             const location = details.geometry.location;
 
             setDestination({
@@ -349,13 +530,16 @@ const Taxi = ({ navigation }) => {
           query={{
             key: GOOGLE_MAPS_APIKEY,
             language: "en",
-            components: region.countryCode ? `country:${region.countryCode}` : undefined,
+            components: region.countryCode
+              ? `country:${region.countryCode}`
+              : undefined,
           }}
 
           styles={{
             textInputContainer: {
               width: "100%",
             },
+
             textInput: {
               borderRadius: 10,
               paddingHorizontal: 15,
@@ -369,20 +553,22 @@ const Taxi = ({ navigation }) => {
               borderRadius: 10,
               marginTop: 5,
               zIndex: 999999,
-              elevation: 999999
+              elevation: 999999,
             },
           }}
         />
       </View>
 
-      {/* ✅ Controls */}
+      {/* TOP CONTROLS */}
       <View style={styles.topOverlay}>
-        {/* Ride Selection Bar */}
+
+        {/* RIDE FOR */}
         <View style={styles.selectionBar}>
           <TouchableOpacity
             style={[
               styles.optionButton,
-              rideFor === "me" && styles.activeOption,
+              rideFor === "me" &&
+                styles.activeOption,
             ]}
             onPress={() => setRideFor("me")}
           >
@@ -392,7 +578,8 @@ const Taxi = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.optionButton,
-              rideFor === "other" && styles.activeOption,
+              rideFor === "other" &&
+                styles.activeOption,
             ]}
             onPress={() => setRideFor("other")}
           >
@@ -400,7 +587,7 @@ const Taxi = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ Back Home Button */}
+        {/* BACK HOME */}
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.navigate("Home")}
@@ -408,298 +595,319 @@ const Taxi = ({ navigation }) => {
           <Text>⬅ Back Home</Text>
         </TouchableOpacity>
       </View>
+
+      {/* RIDE CARDS */}
       <View style={styles.cardsContainer}>
-      
-        {/* MCHORO CARD */}
-{rideOptions?.Mchoro && (
-  <TouchableOpacity
-    activeOpacity={0.4}
-    style={styles.vehicleCard}
-    onPress={() => handleRidePress("Mchoro")}
-  >
 
-    <View style={styles.cardRow}>
+        {/* =================================================
+            MCHORO
+        ================================================= */}
+        {rideOptions?.Mchoro && (
+          <TouchableOpacity
+            activeOpacity={0.4}
+            style={styles.vehicleCard}
+            onPress={() =>
+              handleRidePress("Mchoro")
+            }
+          >
+            <View style={styles.cardRow}>
 
-      {/* VEHICLE IMAGE */}
-      <Animated.Image
-        source={
-          mchoroFrame === 1
-            ? require("../assets/weari/mchoro.png")
-            : mchoroFrame === 2
-            ? require("../assets/weari/mchoro2.png")
-            : mchoroFrame === 3
-            ? require("../assets/weari/mchoro3.png")
-            : require("../assets/weari/mchoro4.png")
-        }
-        style={[
-          styles.sideVehicleImage,
-          selectedRide === "Mchoro"
-            ? {
-                transform: [{ translateX: slideAnim }],
-              }
-            : null,
-        ]}
-        resizeMode="contain"
-      />
-
-      {/* INFO */}
-      <Animated.View
-        style={[
-          styles.cardInfoContainer,
-          selectedRide === "Mchoro"
-            ? {
-                transform: [
-                  {
-                    translateX: slideAnim.interpolate({
-                      inputRange: [0, 500],
-                      outputRange: [0, -250],
-                    }),
+              <Animated.Image
+                source={
+                  mchoroFrame === 1
+                    ? require("../assets/weari/mchoro.png")
+                    : mchoroFrame === 2
+                    ? require("../assets/weari/mchoro2.png")
+                    : mchoroFrame === 3
+                    ? require("../assets/weari/mchoro3.png")
+                    : require("../assets/weari/mchoro4.png")
+                }
+                style={[
+                  styles.sideVehicleImage,
+                  selectedRide === "Mchoro" && {
+                    transform: [
+                      { translateX: slideAnim },
+                    ],
                   },
-                ],
-                opacity: slideAnim.interpolate({
-                  inputRange: [0, 250],
-                  outputRange: [1, 0],
-                }),
-              }
-            : null,
-        ]}
-      >
-        <View>
-        <Text style={styles.vehicleName}>
-          Mchoro
-        </Text>
+                ]}
+                resizeMode="contain"
+              />
 
-        <Text style={styles.vehicleEta}>
-          ETA: {rideOptions?.Mchoro?.pickupEta ?? 0} min
-        </Text>
-        </View>
-        <Text style={styles.vehicleFare}>
-          TSh {rideOptions?.Mchoro?.fare ?? 0}
-        </Text>
+              <Animated.View
+                style={[
+                  styles.cardInfoContainer,
+                  selectedRide === "Mchoro" && {
+                    transform: [
+                      {
+                        translateX:
+                          slideAnim.interpolate({
+                            inputRange: [0, 500],
+                            outputRange: [0, -250],
+                          }),
+                      },
+                    ],
 
-      </Animated.View>
-
-    </View>
-
-  </TouchableOpacity>
-)}
-    {/* ROKA CARD */}
-{rideOptions?.Roka && (
-  <TouchableOpacity
-    activeOpacity={0.4}
-    style={styles.vehicleCard}
-    onPress={() => handleRidePress("Roka")}
-  >
-
-    <View style={styles.cardRow}>
-
-      {/* VEHICLE IMAGE */}
-      <Animated.Image
-        source={
-          rokaFrame === 1
-            ? require("../assets/weari/roka.png")
-            : rokaFrame === 2
-            ? require("../assets/weari/roka2.png")
-            : rokaFrame === 3
-            ? require("../assets/weari/roka3.png")
-            : rokaFrame === 4
-            ? require("../assets/weari/roka4.png")
-            : rokaFrame === 5
-            ? require("../assets/weari/roka5.png")
-            : require("../assets/weari/roka6.png")
-        }
-        style={[
-          styles.sideVehicleImage,
-          selectedRide === "Roka"
-            ? {
-                transform: [{ translateX: slideAnim }],
-              }
-            : null,
-        ]}
-        resizeMode="contain"
-      />
-
-      {/* INFO */}
-      <Animated.View
-        style={[
-          styles.cardInfoContainer,
-          selectedRide === "Roka"
-            ? {
-                transform: [
-                  {
-                    translateX: slideAnim.interpolate({
-                      inputRange: [0, 500],
-                      outputRange: [0, -250],
-                    }),
+                    opacity:
+                      slideAnim.interpolate({
+                        inputRange: [0, 250],
+                        outputRange: [1, 0],
+                      }),
                   },
-                ],
-                opacity: slideAnim.interpolate({
-                  inputRange: [0, 250],
-                  outputRange: [1, 0],
-                }),
-              }
-            : null,
-        ]}
-      >
-        <View>
-        <Text style={styles.vehicleName}>
-          Roka
-        </Text>
+                ]}
+              >
+                <View>
+                  <Text style={styles.vehicleName}>
+                    Mchoro
+                  </Text>
 
-        <Text style={styles.vehicleEta}>
-          ETA: {rideOptions?.Roka?.pickupEta ?? 0} min
-        </Text>
-        </View>
-        <Text style={styles.vehicleFare}>
-          TSh {rideOptions?.Roka?.fare ?? 0}
-        </Text>
+                  <Text style={styles.vehicleEta}>
+                    ETA:{" "}
+                    {rideOptions?.Mchoro?.pickupEta ??
+                      0}{" "}
+                    min
+                  </Text>
+                </View>
 
-      </Animated.View>
+                <Text style={styles.vehicleFare}>
+                  TSh{" "}
+                  {rideOptions?.Mchoro?.fare ?? 0}
+                </Text>
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+        )}
 
-    </View>
+        {/* =================================================
+            ROKA
+        ================================================= */}
+        {rideOptions?.Roka && (
+          <TouchableOpacity
+            activeOpacity={0.4}
+            style={styles.vehicleCard}
+            onPress={() =>
+              handleRidePress("Roka")
+            }
+          >
+            <View style={styles.cardRow}>
 
-  </TouchableOpacity>
-)}
-    {/* WEA CARD */}
-{rideOptions?.Wea && (
-  <TouchableOpacity
-    activeOpacity={0.4}
-    style={styles.vehicleCard}
-    onPress={() => handleRidePress("Wea")}
-  >
-
-    <View style={styles.cardRow}>
-
-      {/* VEHICLE IMAGE */}
-      <Animated.Image
-        source={
-          weaFrame === 1
-            ? require("../assets/weari/wea.png")
-            : require("../assets/weari/wea2.png")
-        }
-        style={[
-          styles.sideVehicleImage,
-          selectedRide === "Wea"
-            ? {
-                transform: [{ translateX: slideAnim }],
-              }
-            : null,
-        ]}
-        resizeMode="contain"
-      />
-
-      {/* INFO */}
-      <Animated.View
-        style={[
-          styles.cardInfoContainer,
-          selectedRide === "Wea"
-            ? {
-                transform: [
-                  {
-                    translateX: slideAnim.interpolate({
-                      inputRange: [0, 500],
-                      outputRange: [0, -250],
-                    }),
+              <Animated.Image
+                source={
+                  rokaFrame === 1
+                    ? require("../assets/weari/roka.png")
+                    : rokaFrame === 2
+                    ? require("../assets/weari/roka2.png")
+                    : rokaFrame === 3
+                    ? require("../assets/weari/roka3.png")
+                    : rokaFrame === 4
+                    ? require("../assets/weari/roka4.png")
+                    : rokaFrame === 5
+                    ? require("../assets/weari/roka5.png")
+                    : require("../assets/weari/roka6.png")
+                }
+                style={[
+                  styles.sideVehicleImage,
+                  selectedRide === "Roka" && {
+                    transform: [
+                      { translateX: slideAnim },
+                    ],
                   },
-                ],
-                opacity: slideAnim.interpolate({
-                  inputRange: [0, 250],
-                  outputRange: [1, 0],
-                }),
-              }
-            : null,
-        ]}
-      >
-        <View>
-        <Text style={styles.vehicleName}>
-          Wea
-        </Text>
+                ]}
+                resizeMode="contain"
+              />
 
-        <Text style={styles.vehicleEta}>
-          ETA: {rideOptions?.Wea?.pickupEta ?? 0} min
-        </Text>
-        </View>
-        <Text style={styles.vehicleFare}>
-          TSh {rideOptions?.Wea?.fare ?? 0}
-        </Text>
+              <Animated.View
+                style={[
+                  styles.cardInfoContainer,
+                  selectedRide === "Roka" && {
+                    transform: [
+                      {
+                        translateX:
+                          slideAnim.interpolate({
+                            inputRange: [0, 500],
+                            outputRange: [0, -250],
+                          }),
+                      },
+                    ],
 
-      </Animated.View>
-
-    </View>
-
-  </TouchableOpacity>
-)}
-      {/* ZOA CARD */}
-{rideOptions?.Zoa && (
-  <TouchableOpacity
-    activeOpacity={0.4}
-    style={styles.vehicleCard}
-    onPress={() => handleRidePress("Zoa")}
-  >
-
-    <View style={styles.cardRow}>
-
-      {/* VEHICLE IMAGE */}
-      <Animated.Image
-        source={
-          zoaFrame === 1
-            ? require("../assets/weari/zoa.png")
-            : require("../assets/weari/zoa2.png")
-        }
-        style={[
-          styles.sideVehicleImage,
-          selectedRide === "Zoa"
-            ? {
-                transform: [{ translateX: slideAnim }],
-              }
-            : null,
-        ]}
-        resizeMode="contain"
-      />
-
-      {/* INFO */}
-      <Animated.View
-        style={[
-          styles.cardInfoContainer,
-          selectedRide === "Zoa"
-            ? {
-                transform: [
-                  {
-                    translateX: slideAnim.interpolate({
-                      inputRange: [0, 500],
-                      outputRange: [0, -250],
-                    }),
+                    opacity:
+                      slideAnim.interpolate({
+                        inputRange: [0, 250],
+                        outputRange: [1, 0],
+                      }),
                   },
-                ],
-                opacity: slideAnim.interpolate({
-                  inputRange: [0, 250],
-                  outputRange: [1, 0],
-                }),
-              }
-            : null,
-        ]}
-      >
-        <View>
-        <Text style={styles.vehicleName}>
-          Zoa
-        </Text>
-        
-        <Text style={styles.vehicleEta}>
-          ETA: {rideOptions?.Zoa?.pickupEta ?? 0} min
-        </Text>
-        </View>
+                ]}
+              >
+                <View>
+                  <Text style={styles.vehicleName}>
+                    Roka
+                  </Text>
 
-        <Text style={styles.vehicleFare}>
-          TSh {rideOptions?.Zoa?.fare ?? 0}
-        </Text>
-      </Animated.View>
+                  <Text style={styles.vehicleEta}>
+                    ETA:{" "}
+                    {rideOptions?.Roka?.pickupEta ??
+                      0}{" "}
+                    min
+                  </Text>
+                </View>
 
-    </View>
+                <Text style={styles.vehicleFare}>
+                  TSh{" "}
+                  {rideOptions?.Roka?.fare ?? 0}
+                </Text>
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+        )}
 
-  </TouchableOpacity>
-)}
+        {/* =================================================
+            WEA
+        ================================================= */}
+        {rideOptions?.Wea && (
+          <TouchableOpacity
+            activeOpacity={0.4}
+            style={styles.vehicleCard}
+            onPress={() =>
+              handleRidePress("Wea")
+            }
+          >
+            <View style={styles.cardRow}>
 
-    </View>
+              <Animated.Image
+                source={
+                  weaFrame === 1
+                    ? require("../assets/weari/wea.png")
+                    : require("../assets/weari/wea2.png")
+                }
+                style={[
+                  styles.sideVehicleImage,
+                  selectedRide === "Wea" && {
+                    transform: [
+                      { translateX: slideAnim },
+                    ],
+                  },
+                ]}
+                resizeMode="contain"
+              />
+
+              <Animated.View
+                style={[
+                  styles.cardInfoContainer,
+                  selectedRide === "Wea" && {
+                    transform: [
+                      {
+                        translateX:
+                          slideAnim.interpolate({
+                            inputRange: [0, 500],
+                            outputRange: [0, -250],
+                          }),
+                      },
+                    ],
+
+                    opacity:
+                      slideAnim.interpolate({
+                        inputRange: [0, 250],
+                        outputRange: [1, 0],
+                      }),
+                  },
+                ]}
+              >
+                <View>
+                  <Text style={styles.vehicleName}>
+                    Wea
+                  </Text>
+
+                  <Text style={styles.vehicleEta}>
+                    ETA:{" "}
+                    {rideOptions?.Wea?.pickupEta ??
+                      0}{" "}
+                    min
+                  </Text>
+                </View>
+
+                <Text style={styles.vehicleFare}>
+                  TSh{" "}
+                  {rideOptions?.Wea?.fare ?? 0}
+                </Text>
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* =================================================
+            ZOA
+        ================================================= */}
+        {rideOptions?.Zoa && (
+          <TouchableOpacity
+            activeOpacity={0.4}
+            style={styles.vehicleCard}
+            onPress={() =>
+              handleRidePress("Zoa")
+            }
+          >
+            <View style={styles.cardRow}>
+
+              <Animated.Image
+                source={
+                  zoaFrame === 1
+                    ? require("../assets/weari/zoa.png")
+                    : require("../assets/weari/zoa2.png")
+                }
+                style={[
+                  styles.sideVehicleImage,
+                  selectedRide === "Zoa" && {
+                    transform: [
+                      { translateX: slideAnim },
+                    ],
+                  },
+                ]}
+                resizeMode="contain"
+              />
+
+              <Animated.View
+                style={[
+                  styles.cardInfoContainer,
+                  selectedRide === "Zoa" && {
+                    transform: [
+                      {
+                        translateX:
+                          slideAnim.interpolate({
+                            inputRange: [0, 500],
+                            outputRange: [0, -250],
+                          }),
+                      },
+                    ],
+
+                    opacity:
+                      slideAnim.interpolate({
+                        inputRange: [0, 250],
+                        outputRange: [1, 0],
+                      }),
+                  },
+                ]}
+              >
+                <View>
+                  <Text style={styles.vehicleName}>
+                    Zoa
+                  </Text>
+
+                  <Text style={styles.vehicleEta}>
+                    ETA:{" "}
+                    {rideOptions?.Zoa?.pickupEta ??
+                      0}{" "}
+                    min
+                  </Text>
+                </View>
+
+                <Text style={styles.vehicleFare}>
+                  TSh{" "}
+                  {rideOptions?.Zoa?.fare ?? 0}
+                </Text>
+              </Animated.View>
+            </View>
+          </TouchableOpacity>
+        )}
+
+      </View>
     </View>
   );
 };
@@ -725,8 +933,7 @@ const styles = StyleSheet.create({
     zIndex: 99999,
     elevation: 99999,
   },
-  
-  /* Floating Overlay */
+
   topOverlay: {
     position: "absolute",
     top: 95,
@@ -734,10 +941,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     backgroundColor: "transparent",
     zIndex: 1,
-    pointerEvents: "box-none"
+    pointerEvents: "box-none",
   },
 
-  /* Selection Bar */
   selectionBar: {
     flexDirection: "row",
     backgroundColor: "rgba(255,255,255,0.7)",
@@ -763,7 +969,6 @@ const styles = StyleSheet.create({
     color: "black",
   },
 
-  /* Search Bar */
   searchBar: {
     backgroundColor: "white",
     borderRadius: 12,
@@ -774,7 +979,6 @@ const styles = StyleSheet.create({
     marginBottom: 60,
   },
 
-  /* Back Home Button */
   backButton: {
     backgroundColor: "rgba(255, 232, 94, 0.5)",
     paddingVertical: 10,
@@ -790,19 +994,19 @@ const styles = StyleSheet.create({
   },
 
   rideCard: {
-   position: "absolute",
-   bottom: 10,
-   width: "92%",
-   alignSelf: "center",
-   borderRadius: 5,
-   padding: 5,
-   elevation: 0,
+    position: "absolute",
+    bottom: 10,
+    width: "92%",
+    alignSelf: "center",
+    borderRadius: 5,
+    padding: 5,
+    elevation: 0,
   },
 
   cardTitle: {
-   fontSize: 20,
-   fontWeight: "bold",
-   marginBottom: 10,
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
   },
 
   cardsContainer: {
@@ -811,7 +1015,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 5,
     zIndex: 999,
-    pointerEvents: "box-none"
+    pointerEvents: "box-none",
   },
 
   vehicleCard: {
@@ -829,37 +1033,36 @@ const styles = StyleSheet.create({
   },
 
   cardRow: {
-  flexDirection: "row",
-  alignItems: "center",
-},
+    flexDirection: "row",
+    alignItems: "center",
+  },
 
-sideVehicleImage: {
-  width: 90,
-  height: 70,
-  marginRight: 10,
-},
+  sideVehicleImage: {
+    width: 90,
+    height: 70,
+    marginRight: 10,
+  },
 
-cardInfoContainer: {
-  flex: 1,
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-},
+  cardInfoContainer: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
 
-vehicleName: {
-  fontSize: 20,
-  fontWeight: "bold",
-  marginBottom: 2,
-},
+  vehicleName: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 2,
+  },
 
-vehicleEta: {
-  fontSize: 15,
-  opacity: 0.7,
-},
+  vehicleEta: {
+    fontSize: 15,
+    opacity: 0.7,
+  },
 
-vehicleFare: {
-  fontSize: 18,
-  fontWeight: "bold",
-},
+  vehicleFare: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
 });
-

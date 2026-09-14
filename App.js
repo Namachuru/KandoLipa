@@ -5,7 +5,7 @@ import SplashSrc from './components/SplashSrc';
 import AuthLoading from './components/AuthLoading';
 import Login from './components/Login';
 import VerifyOTP from "./components/VerifyOTP";
-import CompleteProfile from "./components/CompleteProfile";
+import CreateUser from "./components/CreateUser";
 import Home from './components/Home';
 import Shop from './components/Shop';
 import RealEstate from './components/RealEstate';
@@ -27,7 +27,7 @@ export default function App() {
             <Stack.Screen name="AuthLoading" component={AuthLoading} options={{ headerShown: false}} />
             <Stack.Screen name="Login" component={Login} options={{ headerShown: false}} />
             <Stack.Screen name="VerifyOTP" component={VerifyOTP} options={{ headerShown: false}} />
-            <Stack.Screen name="CompleteProfile" component={CompleteProfile} options={{ headerShown: false}} />
+            <Stack.Screen name="CreateUser" component={CreateUser} options={{ headerShown: false}} />
             <Stack.Screen name="Home" component={Home} options={{ headerShown: false}} />
             <Stack.Screen name="Shop" component={Shop} options={{ headerShown: false}} />
             <Stack.Screen name="Real Estate" component={RealEstate} options={{ headerShown: false}} />

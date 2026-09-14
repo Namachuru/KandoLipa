@@ -11,7 +11,8 @@ export default {
   expo: {
     name: "KandoLipa",
     slug: "kandolipa",
-
+    version: "1.0.0",
+    
     android: {
       package: "com.reynold.kandolipa",
 

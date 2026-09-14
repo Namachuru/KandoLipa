@@ -1,23 +1,110 @@
-// firebase.js
+import {
+  initializeApp,
+  getApp,
+  getApps,
+} from "@react-native-firebase/app";
 
-import auth from "@react-native-firebase/auth";
-import database from "@react-native-firebase/database";
-import functions from "@react-native-firebase/functions";
+import {
+  getAuth,
+} from "@react-native-firebase/auth";
+
+import {
+  getDatabase,
+} from "@react-native-firebase/database";
+
+import {
+  getFunctions,
+} from "@react-native-firebase/functions";
 
 
-// Default Firebase app = KandoLipa
-export const lipaDb = database();
+// ============================================================
+// KANDO LIPA — DEFAULT APP
+// ============================================================
 
-export const lipaFunctions = functions();
+const lipaApp = getApp();
+
+export const auth = getAuth(lipaApp);
+export const lipaDb = getDatabase(lipaApp);
+export const lipaFunctions = getFunctions(lipaApp);
 
 
-// KandoFaida secondary database
+// ============================================================
+// KANDO FAIDA — SECONDARY APP
+// ============================================================
 
-export const faidaDb = database(
-  undefined,
-  "https://kandofaida-18662-default-rtdb.firebaseio.com/"
+const faidaConfig = {
+  apiKey: "AIzaSyD-R_iObYF3n-seke0sOZR436HZ9NgBUDM",
+  appId: "1:454996214392:android:badb4008e69f367997a38d",
+  projectId: "kandofaida-18662",
+  storageBucket: "kandofaida-18662.firebasestorage.app",
+   messagingSenderId: "454996214392",
+   databaseURL:
+    "https://kandofaida-18662-default-rtdb.firebaseio.com"
+};
+
+
+// ============================================================
+// GET / CREATE KANDO FAIDA APP
+// ============================================================
+
+let faidaApp = getApps().find(
+  (app) => app.name === "KandoFaida"
 );
 
 
-// Auth
-export { auth };
+// ============================================================
+// IMPORTANT
+// initializeApp() is ASYNC for secondary apps.
+// ============================================================
+
+export const faidaAppPromise =
+  faidaApp
+    ? Promise.resolve(faidaApp)
+    : initializeApp(
+        faidaConfig,
+        "KandoFaida"
+      );
+
+
+// ============================================================
+// DEBUG
+// ============================================================
+
+faidaAppPromise.then((app) => {
+  console.log("==================================================");
+  console.log("LIPA APP NAME:", lipaApp.name);
+  console.log("FAIDA APP NAME:", app.name);
+  console.log(
+    "SAME APP:",
+    lipaApp === app
+  );
+
+  console.log(
+    "LIPA DATABASE URL:",
+    lipaApp.options.databaseURL
+  );
+
+  console.log(
+    "FAIDA DATABASE URL:",
+    app.options.databaseURL
+  );
+
+  console.log("==================================================");
+});
+
+
+// ============================================================
+// FAIDA DATABASE
+// ============================================================
+//
+// IMPORTANT:
+// Because faidaApp is initialized asynchronously,
+// components should obtain faidaDb through
+// getFaidaDb().
+// ============================================================
+
+export const getFaidaDb = async () => {
+  const app = await faidaAppPromise;
+
+  return getDatabase(app);
+};

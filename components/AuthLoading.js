@@ -42,7 +42,7 @@ const AuthLoading = ({ navigation }) => {
 
           const passengerRef = ref(
             lipaDb,
-            `KandoLipa/passenger/${uid}`
+            `KandoLipa/clients/${uid}`
           );
 
           const snapshot = await get(passengerRef);

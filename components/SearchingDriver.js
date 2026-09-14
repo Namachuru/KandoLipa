@@ -1,4 +1,9 @@
-import React, { useEffect, useRef } from "react";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import {
   View,
   Text,
@@ -8,14 +13,47 @@ import {
   TouchableOpacity,
 } from "react-native";
 
-import MapView, { Marker } from "react-native-maps";
-import MapViewDirections from "react-native-maps-directions";
+import {
+  lipaFunctions,
+  lipaDb,
+  faidaDb,
+} from "../firebase/firebase";
+
+import {
+  ref,
+  onValue,
+  set,
+} from "@react-native-firebase/database";
+
+import MapView, {
+  Marker,
+} from "react-native-maps";
+
+import MapViewDirections from
+  "react-native-maps-directions";
+
+import * as Location from "expo-location";
+
 import Constants from "expo-constants";
 
-import { ref, onValue, set } from "firebase/database";
-import { faidaDb } from "../firebase/firebase";
 
-const SearchingDriver = ({ route, navigation }) => {
+// ==========================================================
+// GOOGLE MAPS API KEY
+// ==========================================================
+
+const GOOGLE_MAPS_API_KEY =
+  Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY;
+
+
+// ==========================================================
+// SEARCHING DRIVER
+// ==========================================================
+
+const SearchingDriver = ({
+  route,
+  navigation,
+}) => {
+
   const {
     pickupLocation,
     destination,
@@ -23,253 +61,2030 @@ const SearchingDriver = ({ route, navigation }) => {
     rideData,
   } = route.params || {};
 
-  const driver = rideData?.winner ?? null;
 
-  const pulse = useRef(new Animated.Value(1)).current;
+  // ========================================================
+  // WINNING DRIVER
+  // ========================================================
 
-  // Pulse animation
+  const driver =
+    rideData?.winner ?? null;
+
+
+  // ========================================================
+  // ANIMATION
+  // ========================================================
+
+  const pulse = useRef(
+    new Animated.Value(1),
+  ).current;
+
+
+  // ========================================================
+  // LOCATION SUBSCRIPTION
+  // ========================================================
+
+  const locationSubscription =
+    useRef(null);
+
+
+  // ========================================================
+  // REQUEST LOCK
+  //
+  // Prevents two rapid Confirm Request presses
+  // from creating two ride requests.
+  // ========================================================
+
+  const requestLock =
+    useRef(false);
+
+
+  // ========================================================
+  // STATE
+  // ========================================================
+
+  const [requestId, setRequestId] =
+    useState(
+      rideData?.request_id ||
+      rideData?.requestId ||
+      null,
+    );
+
+  const [requestStatus, setRequestStatus] =
+    useState(null);
+
+  const [requestSent, setRequestSent] =
+    useState(false);
+
+
+  // ========================================================
+  // AUTHENTICATION
+  // ========================================================
+
+  const auth =
+    require("@react-native-firebase/auth")
+      .getAuth();
+
+
+  // ========================================================
+  // DEBUG
+  // ========================================================
+
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1.2,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+
+    console.log("");
+    console.log(
+      "==================================================",
+    );
+
+    console.log(
+      "🔵 SEARCHING DRIVER SCREEN",
+    );
+
+    console.log(
+      "==================================================",
+    );
+
+    console.log(
+      "📍 Pickup:",
+      pickupLocation,
+    );
+
+    console.log(
+      "🏁 Destination:",
+      destination,
+    );
+
+    console.log(
+      "🚗 Selected Ride:",
+      selectedRide,
+    );
+
+    console.log(
+      "📦 Ride Data:",
+      rideData,
+    );
+
+    console.log(
+      "🏆 Winner:",
+      driver,
+    );
+
+    console.log(
+      "🚗 Driver MP ID:",
+      driver?.mp_id,
+    );
+
+    console.log(
+      "🆔 Request ID:",
+      requestId,
+    );
+
+    console.log(
+      "👤 Client ID:",
+      auth.currentUser?.uid,
+    );
+
+    console.log(
+      "==================================================",
+    );
+
   }, []);
 
-  // Listen for driver response (accepted)
+
+  // ========================================================
+  // UPDATE REQUEST ID IF RIDE DATA CHANGES
+  // ========================================================
+
   useEffect(() => {
-    if (!driver?.mp_id) return;
 
-    const path = `KandoFaida/mobility_partners/${driver.mp_id}/status/state`;
-    console.log("LISTENING TO:", path);
+    const incomingRequestId =
+      rideData?.request_id ||
+      rideData?.requestId ||
+      null;
 
-    const stateRef = ref(faidaDb, path);
 
-    const unsubscribe = onValue(stateRef, (snapshot) => {
-      const state = snapshot.val();
+    if (
+      incomingRequestId &&
+      incomingRequestId !== requestId
+    ) {
 
-      console.log("DRIVER STATE:", state);
+      console.log(
+        "🆔 REQUEST ID UPDATED:",
+        incomingRequestId,
+      );
 
-      if (state === "accepted") {
-        console.log("Driver accepted. Navigating...");
+      setRequestId(
+        incomingRequestId,
+      );
 
-        navigation.replace("DriverApproaching", {
-          driver,
-          pickupLocation,
-          destination,
-          rideData
-        });
+    }
+
+  }, [
+    rideData?.request_id,
+    rideData?.requestId,
+  ]);
+
+
+  // ========================================================
+  // VEHICLE ICON
+  // ========================================================
+
+  const getVehicleIcon = () => {
+
+    if (
+      selectedRide === "Mchoro"
+    ) {
+      return "🏍️";
+    }
+
+    if (
+      selectedRide === "Roka"
+    ) {
+      return "🛺";
+    }
+
+    if (
+      selectedRide === "Wea"
+    ) {
+      return "🚗";
+    }
+
+    if (
+      selectedRide === "Zoa"
+    ) {
+      return "🚐";
+    }
+
+    return "🚕";
+  };
+
+
+  // ========================================================
+  // BIG / SMALL VEHICLE ANIMATION
+  // ========================================================
+
+  useEffect(() => {
+
+    const animation =
+      Animated.loop(
+
+        Animated.sequence([
+
+          Animated.timing(
+            pulse,
+            {
+              toValue: 1.25,
+
+              duration: 700,
+
+              useNativeDriver: true,
+            },
+          ),
+
+          Animated.timing(
+            pulse,
+            {
+              toValue: 1,
+
+              duration: 700,
+
+              useNativeDriver: true,
+            },
+          ),
+
+        ]),
+
+      );
+
+
+    animation.start();
+
+
+    return () => {
+
+      animation.stop();
+
+    };
+
+  }, [pulse]);
+
+
+  // ========================================================
+  // SEND RIDE REQUEST
+  //
+  // ONLY RUNS WHEN USER PRESSES
+  // "CONFIRM REQUEST"
+  // ========================================================
+
+  const sendRequestToDriver =
+    async () => {
+
+      // ====================================================
+      // DRIVER VALIDATION
+      // ====================================================
+
+      if (
+        !driver?.mp_id
+      ) {
+
+        console.log(
+          "❌ No driver ID",
+        );
+
+        Alert.alert(
+          "Driver Error",
+          "No driver was found.",
+        );
+
+        return;
       }
-    });
 
-    return () => unsubscribe();
-  }, [driver]);
 
-  // Timeout if no driver accepts
+      // ====================================================
+      // DUPLICATE REQUEST PROTECTION
+      // ====================================================
+
+      if (
+        requestSent ||
+        requestLock.current
+      ) {
+
+        console.log(
+          "⚠️ REQUEST ALREADY BEING SENT / SENT",
+        );
+
+        return;
+      }
+
+
+      // ====================================================
+      // LOCK IMMEDIATELY
+      //
+      // This happens BEFORE the async Firebase call.
+      // Therefore a second tap cannot create another request.
+      // ====================================================
+
+      requestLock.current =
+        true;
+
+
+      try {
+
+        console.log("");
+        console.log(
+          "==================================================",
+        );
+
+        console.log(
+          "🔥 REQUESTING RIDE FROM SERVER",
+        );
+
+        console.log(
+          "==================================================",
+        );
+
+        console.log(
+          "🚗 DRIVER:",
+          driver.mp_id,
+        );
+
+
+        // ==================================================
+        // LOCATION PERMISSION
+        // ==================================================
+
+        const {
+          status,
+        } =
+          await Location
+            .requestForegroundPermissionsAsync();
+
+
+        if (
+          status !== "granted"
+        ) {
+
+          requestLock.current =
+            false;
+
+          Alert.alert(
+            "Location Required",
+            "Please allow location access to request a ride.",
+          );
+
+          return;
+        }
+
+
+        // ==================================================
+        // CURRENT CLIENT GPS
+        // ==================================================
+
+        const currentLocation =
+          await Location
+            .getCurrentPositionAsync({
+
+              accuracy:
+                Location.Accuracy.High,
+
+            });
+
+
+        const clientLocation = {
+
+          lat:
+            currentLocation
+              .coords
+              .latitude,
+
+          lng:
+            currentLocation
+              .coords
+              .longitude,
+
+        };
+
+
+        console.log(
+          "📱 CURRENT CLIENT GPS:",
+          clientLocation,
+        );
+
+
+        // ==================================================
+        // CALL SERVER requestRide
+        // ==================================================
+
+        const requestRide =
+          lipaFunctions
+            .httpsCallable(
+              "requestRide",
+            );
+
+
+        const result =
+          await requestRide({
+
+            // Passenger selected pickup
+            userLocation:
+              pickupLocation,
+
+            // Actual passenger GPS
+            clientLocation:
+              clientLocation,
+
+            // Destination
+            destination:
+              destination,
+
+            // Selected vehicle
+            selectedRide:
+              selectedRide,
+
+            // Winner information
+            rideData:
+              rideData,
+
+          });
+
+
+        console.log(
+          "🔥 REQUEST RIDE RESPONSE:",
+          result.data,
+        );
+
+
+        // ==================================================
+        // GET REQUEST ID
+        //
+        // CURRENT SERVER:
+        // request_id
+        //
+        // OLD SERVER:
+        // requestId
+        // ==================================================
+
+        const newRequestId =
+          result.data?.request_id ||
+          result.data?.requestId ||
+          null;
+
+
+        if (
+          !newRequestId
+        ) {
+
+          throw new Error(
+            "Server did not return a request ID.",
+          );
+
+        }
+
+
+        console.log(
+          "🔥 REQUEST ID:",
+          newRequestId,
+        );
+
+
+        // ==================================================
+        // UPDATE LOCAL STATE
+        // ==================================================
+
+        setRequestId(
+          newRequestId,
+        );
+
+        setRequestSent(
+          true,
+        );
+
+        setRequestStatus(
+          "pending",
+        );
+
+
+        console.log(
+          "✅ RIDE REQUEST SUCCESSFULLY SENT",
+        );
+
+        console.log(
+          "🆔 ACTIVE REQUEST:",
+          newRequestId,
+        );
+
+
+        Alert.alert(
+          "Ride Requested",
+          "Your request has been sent to the driver.",
+        );
+
+
+      } catch (
+        error
+      ) {
+
+        console.log(
+          "❌ REQUEST RIDE ERROR:",
+          error,
+        );
+
+
+        // ==================================================
+        // UNLOCK ONLY WHEN REQUEST FAILED
+        // ==================================================
+
+        requestLock.current =
+          false;
+
+
+        Alert.alert(
+          "Request Failed",
+          error?.message ||
+            "Unable to request the driver.",
+        );
+
+      }
+
+    };
+
+
+  // ========================================================
+  // LIVE CLIENT GPS
+  //
+  // KandoFaida:
+  //
+  // KandoFaida/
+  //   mobility_partners/
+  //     driverId/
+  //       ride_requests/
+  //         requestId/
+  //           client_location
+  // ========================================================
+
   useEffect(() => {
-    if (rideData?.winner) {
+
+    if (
+      !requestId ||
+      !driver?.mp_id
+    ) {
+
       return;
     }
 
-    const timeout = setTimeout(() => {
-      Alert.alert(
-        "No Driver Found",
-        "No driver accepted your request."
+
+    let cancelled =
+      false;
+
+
+    const startClientTracking =
+      async () => {
+
+        try {
+
+          console.log(
+            "📡 STARTING LIVE CLIENT GPS",
+          );
+
+          console.log(
+            "🆔 REQUEST:",
+            requestId,
+          );
+
+          console.log(
+            "🚗 DRIVER:",
+            driver.mp_id,
+          );
+
+
+          // ==================================================
+          // CHECK PERMISSION
+          // ==================================================
+
+          const {
+            status,
+          } =
+            await Location
+              .getForegroundPermissionsAsync();
+
+
+          if (
+            status !== "granted"
+          ) {
+
+            console.log(
+              "❌ Client location permission not granted",
+            );
+
+            return;
+          }
+
+
+          if (
+            cancelled
+          ) {
+
+            return;
+          }
+
+
+          // ==================================================
+          // FIREBASE LOCATION REF
+          //
+          // This remains in KandoFaida because the
+          // driver's app uses this location.
+          // ==================================================
+
+          const clientLocationRef =
+            ref(
+              faidaDb,
+
+              `KandoFaida/mobility_partners/${driver.mp_id}` +
+              `/ride_requests/${requestId}` +
+              `/client_location`,
+            );
+
+
+          console.log(
+            "📡 CLIENT GPS FIREBASE PATH:",
+
+            `KandoFaida/mobility_partners/${driver.mp_id}` +
+            `/ride_requests/${requestId}` +
+            `/client_location`,
+          );
+
+
+          // ==================================================
+          // INITIAL GPS
+          // ==================================================
+
+          const initialLocation =
+            await Location
+              .getCurrentPositionAsync({
+
+                accuracy:
+                  Location.Accuracy.High,
+
+              });
+
+
+          if (
+            cancelled
+          ) {
+
+            return;
+          }
+
+
+          const initialClientLocation = {
+
+            lat:
+              initialLocation
+                .coords
+                .latitude,
+
+            lng:
+              initialLocation
+                .coords
+                .longitude,
+
+          };
+
+
+          console.log(
+            "📱 INITIAL CLIENT GPS:",
+            initialClientLocation,
+          );
+
+
+          await set(
+            clientLocationRef,
+            initialClientLocation,
+          );
+
+
+          console.log(
+            "✅ INITIAL CLIENT GPS SAVED",
+          );
+
+
+          // ==================================================
+          // WATCH CLIENT GPS
+          // ==================================================
+
+          locationSubscription.current =
+            await Location
+              .watchPositionAsync(
+
+                {
+
+                  accuracy:
+                    Location.Accuracy.High,
+
+                  distanceInterval:
+                    5,
+
+                  timeInterval:
+                    3000,
+
+                },
+
+                async (
+                  location,
+                ) => {
+
+                  if (
+                    cancelled
+                  ) {
+
+                    return;
+                  }
+
+
+                  const clientLocation = {
+
+                    lat:
+                      location
+                        .coords
+                        .latitude,
+
+                    lng:
+                      location
+                        .coords
+                        .longitude,
+
+                  };
+
+
+                  console.log(
+                    "📱 LIVE CLIENT GPS:",
+                    clientLocation,
+                  );
+
+
+                  try {
+
+                    await set(
+                      clientLocationRef,
+                      clientLocation,
+                    );
+
+
+                    console.log(
+                      "✅ CLIENT GPS UPDATED",
+                    );
+
+                  } catch (
+                    error
+                  ) {
+
+                    console.error(
+                      "❌ FAILED TO UPDATE CLIENT GPS:",
+                      error,
+                    );
+
+                  }
+
+                },
+
+              );
+
+
+          console.log(
+            "✅ CLIENT GPS TRACKING STARTED",
+          );
+
+
+        } catch (
+          error
+        ) {
+
+          console.error(
+            "❌ CLIENT GPS TRACKING ERROR:",
+            error,
+          );
+
+        }
+
+      };
+
+
+    startClientTracking();
+
+
+    // ======================================================
+    // CLEANUP
+    // ======================================================
+
+    return () => {
+
+      cancelled =
+        true;
+
+
+      if (
+        locationSubscription.current
+      ) {
+
+        console.log(
+          "🧹 STOPPING CLIENT GPS TRACKING",
+        );
+
+
+        locationSubscription
+          .current
+          .remove();
+
+
+        locationSubscription.current =
+          null;
+
+      }
+
+    };
+
+
+  }, [
+    requestId,
+    driver?.mp_id,
+  ]);
+
+
+  // ========================================================
+  // LISTEN FOR DRIVER RESPONSE
+  //
+  // IMPORTANT:
+  //
+  // STATUS IS READ FROM KandoLipa USING THE CLIENT ID.
+  //
+  // KandoLipa/
+  //   clients/
+  //     CLIENT_UID/
+  //       ride_requests/
+  //         REQUEST_ID/
+  //           status
+  //
+  // DO NOT USE driver.mp_id HERE.
+  // ========================================================
+
+  useEffect(() => {
+
+    // ======================================================
+    // GET AUTHENTICATED CLIENT
+    // ======================================================
+
+    const clientId =
+      auth.currentUser?.uid;
+
+
+    if (
+      !clientId
+    ) {
+
+      console.log(
+        "❌ DRIVER RESPONSE LISTENER: NO CLIENT UID",
       );
 
-      navigation.navigate("Taxi");
-    }, 20000);
-
-    return () => clearTimeout(timeout);
-  }, [rideData, navigation]);
-
-  // Send request (THIS is where pending is written)
-  const sendRequestToDriver = async () => {
-    if (!driver?.mp_id) return;
-
-    try {
-      const path = `KandoFaida/mobility_partners/${driver.mp_id}/status/state`;
-
-      console.log("WRITING:", path);
-
-      await set(ref(faidaDb, path), "pending");
-
-      console.log("PENDING WRITTEN");
-    } catch (error) {
-      console.log("WRITE ERROR:", error);
+      return;
     }
-  };
 
-  if (!pickupLocation || !destination) {
-    return (
-      <View style={styles.center}>
-        <Text>Missing trip data...</Text>
-      </View>
+
+    // ======================================================
+    // REQUEST ID REQUIRED
+    // ======================================================
+
+    if (
+      !requestId
+    ) {
+
+      console.log(
+        "⚠️ DRIVER RESPONSE LISTENER: NO REQUEST ID",
+      );
+
+      return;
+    }
+
+
+    // ======================================================
+    // DRIVER ID REQUIRED
+    // ======================================================
+
+    if (
+      !driver?.mp_id
+    ) {
+
+      console.log(
+        "⚠️ DRIVER RESPONSE LISTENER: NO DRIVER ID",
+      );
+
+      return;
+    }
+
+
+    // ======================================================
+    // CORRECT KandoLipa PATH
+    // ======================================================
+
+    const requestPath =
+      `KandoLipa/clients/${clientId}` +
+      `/ride_requests/${requestId}`;
+
+
+    console.log("");
+    console.log(
+      "==================================================",
     );
-  }
 
-  return (
-    <View style={styles.container}>
-      {/* MAP */}
-      <MapView
-        style={styles.map}
-        initialRegion={{
-          latitude: pickupLocation.latitude,
-          longitude: pickupLocation.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
+    console.log(
+      "👂 STARTING DRIVER REQUEST LISTENER",
+    );
+
+    console.log(
+      "==================================================",
+    );
+
+    console.log(
+      "👤 CLIENT ID:",
+      clientId,
+    );
+
+    console.log(
+      "🚗 DRIVER ID:",
+      driver.mp_id,
+    );
+
+    console.log(
+      "🆔 REQUEST ID:",
+      requestId,
+    );
+
+    console.log(
+      "📡 LISTENER PATH:",
+      requestPath,
+    );
+
+    console.log(
+      "==================================================",
+    );
+
+
+    // ======================================================
+    // FIREBASE REFERENCE
+    // ======================================================
+
+    const requestRef =
+      ref(
+        lipaDb,
+        requestPath,
+      );
+
+
+    // ======================================================
+    // REQUEST CHANGE HANDLER
+    // ======================================================
+
+    const handleRequestChange =
+      (snapshot) => {
+
+        const request =
+          snapshot.val();
+
+
+        console.log("");
+        console.log(
+          "🔥🔥🔥 KANDOLIPA REQUEST UPDATE",
+        );
+
+        console.log(
+          "📡 PATH:",
+          requestPath,
+        );
+
+        console.log(
+          "📦 EXISTS:",
+          snapshot.exists(),
+        );
+
+        console.log(
+          "📦 REQUEST:",
+          request,
+        );
+
+
+        // ==================================================
+        // REQUEST DOES NOT EXIST
+        // ==================================================
+
+        if (
+          !request
+        ) {
+
+          console.log(
+            "⚠️ REQUEST DOES NOT EXIST",
+          );
+
+          return;
+        }
+
+
+        // ==================================================
+        // READ STATUS
+        // ==================================================
+
+        const status =
+          request.status ||
+          null;
+
+
+        console.log(
+          "🚦 RIDE REQUEST STATUS:",
+          status,
+        );
+
+
+        setRequestStatus(
+          status,
+        );
+
+
+        // ==================================================
+        // PENDING
+        // ==================================================
+
+        if (
+          status === "pending"
+        ) {
+
+          console.log(
+            "⏳ DRIVER REQUEST IS PENDING",
+          );
+
+          return;
+        }
+
+
+        // ==================================================
+        // ACCEPTED
+        // ==================================================
+
+        if (
+          status === "accepted"
+        ) {
+
+          console.log("");
+          console.log(
+            "==============================================",
+          );
+
+          console.log(
+            "✅✅✅ DRIVER ACCEPTED RIDE",
+          );
+
+          console.log(
+            "🚀 NAVIGATING TO DriverApproachingScreen",
+          );
+
+          console.log(
+            "==============================================",
+          );
+
+
+          navigation.replace(
+            "DriverApproaching",
+            {
+
+              pickupLocation,
+
+              destination,
+
+              selectedRide,
+
+              rideData,
+
+              driver,
+
+              requestId
+
+            }
+          );
+
+
+          return;
+        }
+
+
+        // ==================================================
+        // REJECTED
+        // ==================================================
+
+        if (
+          status === "rejected"
+        ) {
+
+          console.log(
+            "❌ DRIVER REJECTED RIDE",
+          );
+
+
+          setRequestSent(
+            false,
+          );
+
+          setRequestStatus(
+            "rejected",
+          );
+
+          setRequestId(
+            null,
+          );
+
+          requestLock.current =
+            false;
+
+
+          Alert.alert(
+            "Ride Declined",
+            "The driver declined your request.",
+            [
+              {
+                text: "OK",
+
+                onPress: () => {
+
+                  navigation.replace(
+                    "Taxi",
+                  );
+
+                },
+
+              },
+            ],
+          );
+
+
+          return;
+        }
+
+      };
+
+
+    // ======================================================
+    // START FIREBASE LISTENER
+    // ======================================================
+
+    const unsubscribeRequestListener = onValue(
+      requestRef,
+      handleRequestChange,
+    );
+
+
+    // ======================================================
+    // CLEANUP
+    // ======================================================
+
+    return () => {
+
+      console.log(
+        "🧹 REMOVING DRIVER REQUEST LISTENER",
+      );
+
+
+      unsubscribeRequestListener();
+
+    };
+
+
+  }, [
+
+    requestId,
+
+    driver?.mp_id,
+
+    navigation,
+
+    pickupLocation,
+
+    destination,
+
+    selectedRide,
+
+    rideData,
+
+  ]);
+
+
+  // ========================================================
+  // NO DRIVER TIMEOUT
+  //
+  // Only applies BEFORE a winning driver exists.
+  // ========================================================
+
+  useEffect(() => {
+
+    if (
+      requestSent
+    ) {
+
+      return;
+    }
+
+
+    if (
+      rideData?.winner
+    ) {
+
+      return;
+    }
+
+
+    const timeout =
+      setTimeout(() => {
+
+        console.log(
+          "⏰ DRIVER SEARCH TIMEOUT",
+        );
+
+
+        Alert.alert(
+          "No Driver Found",
+          "No driver was found.",
+        );
+
+
+        navigation.navigate(
+          "Taxi",
+        );
+
+      }, 20000);
+
+
+    return () =>
+      clearTimeout(
+        timeout,
+      );
+
+
+  }, [
+
+    rideData,
+
+    navigation,
+
+    requestSent,
+
+  ]);
+
+
+  // ========================================================
+  // VALIDATION
+  // ========================================================
+
+  if (
+    !pickupLocation ||
+    !destination
+  ) {
+
+    return (
+
+      <View
+        style={styles.center}
       >
-        <Marker coordinate={pickupLocation} title="Pickup" />
-        <Marker coordinate={destination} title="Destination" pinColor="green" />
 
-        <MapViewDirections
-          origin={pickupLocation}
-          destination={destination}
-          apikey={Constants.expoConfig?.extra?.GOOGLE_MAPS_APIKEY}
-          strokeWidth={4}
-          strokeColor="black"
-        />
-
-        {driver?.location && (
-          <Marker
-            coordinate={{
-              latitude: driver.location.lat,
-              longitude: driver.location.lng,
-            }}
-            title="Driver"
-          />
-        )}
-      </MapView>
-
-      {/* CARD */}
-      <View style={styles.card}>
-        <Text style={styles.title}>
-          Finding {selectedRide} Driver
+        <Text>
+          Missing trip data...
         </Text>
 
+      </View>
+
+    );
+
+  }
+
+
+  // ========================================================
+  // MAIN UI
+  // ========================================================
+
+  return (
+
+    <View
+      style={styles.container}
+    >
+
+
+      {/* ==================================================
+          MAP
+      ================================================== */}
+
+      <MapView
+        style={styles.map}
+
+        initialRegion={{
+
+          latitude:
+            Number(
+              pickupLocation.latitude,
+            ),
+
+          longitude:
+            Number(
+              pickupLocation.longitude,
+            ),
+
+          latitudeDelta:
+            0.05,
+
+          longitudeDelta:
+            0.05,
+
+        }}
+      >
+
+
+        {/* ==================================================
+            PICKUP
+        ================================================== */}
+
+        <Marker
+          coordinate={{
+
+            latitude:
+              Number(
+                pickupLocation.latitude,
+              ),
+
+            longitude:
+              Number(
+                pickupLocation.longitude,
+              ),
+
+          }}
+
+          title="Pickup"
+        />
+
+
+        {/* ==================================================
+            DESTINATION
+        ================================================== */}
+
+        <Marker
+          coordinate={{
+
+            latitude:
+              Number(
+                destination.latitude,
+              ),
+
+            longitude:
+              Number(
+                destination.longitude,
+              ),
+
+          }}
+
+          title="Destination"
+
+          pinColor="green"
+        />
+
+
+        {/* ==================================================
+            ROUTE
+        ================================================== */}
+
+        <MapViewDirections
+
+          origin={{
+
+            latitude:
+              Number(
+                pickupLocation.latitude,
+              ),
+
+            longitude:
+              Number(
+                pickupLocation.longitude,
+              ),
+
+          }}
+
+          destination={{
+
+            latitude:
+              Number(
+                destination.latitude,
+              ),
+
+            longitude:
+              Number(
+                destination.longitude,
+              ),
+
+          }}
+
+          apikey={
+            GOOGLE_MAPS_API_KEY
+          }
+
+          strokeWidth={4}
+
+          strokeColor="black"
+
+        />
+
+
+        {/* ==================================================
+            DRIVER
+        ================================================== */}
+
+        {driver?.location && (
+
+          <Marker
+
+            coordinate={{
+
+              latitude:
+                Number(
+                  driver.location.lat,
+                ),
+
+              longitude:
+                Number(
+                  driver.location.lng,
+                ),
+
+            }}
+
+            title="Driver"
+
+          />
+
+        )}
+
+
+      </MapView>
+
+
+      {/* ==================================================
+          BOTTOM CARD
+      ================================================== */}
+
+      <View
+        style={styles.card}
+      >
+
+
+        {/* ==================================================
+            ANIMATED VEHICLE ICON
+        ================================================== */}
+
+        <Animated.View
+          style={[
+            styles.vehicleCircle,
+
+            {
+              transform: [
+                {
+                  scale: pulse,
+                },
+              ],
+            },
+
+          ]}
+        >
+
+          <Text
+            style={
+              styles.vehicleIcon
+            }
+          >
+            {getVehicleIcon()}
+          </Text>
+
+        </Animated.View>
+
+
+        {/* ==================================================
+            TITLE
+        ================================================== */}
+
+        <Text
+          style={styles.title}
+        >
+
+          {requestStatus ===
+          "accepted"
+
+            ? "Driver Accepted"
+
+            : requestSent
+
+              ? "Waiting for Driver"
+
+              : `Finding ${selectedRide} Driver`
+
+          }
+
+        </Text>
+
+
+        {/* ==================================================
+            DRIVER
+        ================================================== */}
+
         {driver ? (
+
           <>
-            <Text style={styles.driverName}>
-              🚗 {driver.full_name}
-            </Text>
 
-            <Text style={styles.info}>
-              📍 Distance: {driver.distance?.toFixed(2)} km
-            </Text>
-
-            <Text style={styles.info}>
-              💰 Fare: TSh {rideData?.fare}
-            </Text>
-
-            <Text style={styles.info}>
-              ⏱ ETA: {rideData?.pickupEta} min
-            </Text>
-
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={sendRequestToDriver}
+            <Text
+              style={
+                styles.driverName
+              }
             >
-              <Text style={styles.confirmText}>
-                Confirm Request
-              </Text>
-            </TouchableOpacity>
+
+              🚗{" "}
+              {driver.full_name ||
+                driver.name ||
+                "Driver"}
+
+            </Text>
+
+
+            {/* ==================================================
+                DISTANCE
+            ================================================== */}
+
+            <Text
+              style={styles.info}
+            >
+
+              📍 Distance:{" "}
+
+              {driver.distance != null
+
+                ? Number(
+                    driver.distance,
+                  ).toFixed(2)
+
+                : "--"}
+
+              {" "}km
+
+            </Text>
+
+
+            {/* ==================================================
+                FARE
+            ================================================== */}
+
+            <Text
+              style={styles.info}
+            >
+
+              💰 Fare: TSh{" "}
+
+              {rideData?.fare != null
+
+                ? Number(
+                    rideData.fare,
+                  ).toLocaleString()
+
+                : "--"}
+
+            </Text>
+
+
+            {/* ==================================================
+                ETA
+            ================================================== */}
+
+            <Text
+              style={styles.info}
+            >
+
+              ⏱ ETA:{" "}
+
+              {rideData?.pickupEta ??
+                "--"}
+
+              {" "}min
+
+            </Text>
+
+
+            {/* ==================================================
+                REQUEST STATUS
+            ================================================== */}
+
+            {requestSent && (
+
+              <View
+                style={
+                  styles.statusBox
+                }
+              >
+
+                <Text
+                  style={
+                    styles.statusText
+                  }
+                >
+
+                  {requestStatus ===
+                  "pending"
+
+                    ? "⏳ Waiting for driver..."
+
+                    : requestStatus ===
+                      "accepted"
+
+                      ? "✅ Driver accepted!"
+
+                      : requestStatus}
+
+                </Text>
+
+              </View>
+
+            )}
+
+
+            {/* ==================================================
+                CONFIRM REQUEST
+            ================================================== */}
+
+            {!requestSent && (
+
+              <TouchableOpacity
+
+                style={
+                  styles.confirmButton
+                }
+
+                onPress={
+                  sendRequestToDriver
+                }
+
+              >
+
+                <Text
+                  style={
+                    styles.confirmText
+                  }
+                >
+                  Confirm Request
+                </Text>
+
+              </TouchableOpacity>
+
+            )}
+
           </>
+
         ) : (
-          <View style={styles.loadingBox}>
+
+          // ====================================================
+          // STILL SEARCHING FOR DRIVER
+          // ====================================================
+
+          <View
+            style={
+              styles.loadingBox
+            }
+          >
+
             <Animated.View
               style={[
-                styles.pulse,
-                { transform: [{ scale: pulse }] },
+                styles.vehicleSearchCircle,
+
+                {
+                  transform: [
+                    {
+                      scale: pulse,
+                    },
+                  ],
+                },
+
               ]}
-            />
-            <Text style={styles.loadingText}>
-              Searching for best driver...
+            >
+
+              <Text
+                style={
+                  styles.searchVehicleIcon
+                }
+              >
+                {getVehicleIcon()}
+              </Text>
+
+            </Animated.View>
+
+
+            <Text
+              style={
+                styles.loadingText
+              }
+            >
+
+              Searching for best{" "}
+              {selectedRide || "vehicle"}{" "}
+              driver...
+
             </Text>
+
           </View>
+
         )}
+
       </View>
+
     </View>
+
   );
+
 };
 
+
+// ==========================================================
+// STYLES
+// ==========================================================
+
+const styles =
+  StyleSheet.create({
+
+    container: {
+      flex: 1,
+    },
+
+
+    map: {
+      flex: 1,
+    },
+
+
+    center: {
+
+      flex: 1,
+
+      justifyContent:
+        "center",
+
+      alignItems:
+        "center",
+
+    },
+
+
+    // ======================================================
+    // CARD
+    // ======================================================
+
+    card: {
+
+      position:
+        "absolute",
+
+      bottom:
+        20,
+
+      left:
+        15,
+
+      right:
+        15,
+
+      backgroundColor:
+        "white",
+
+      borderRadius:
+        20,
+
+      padding:
+        20,
+
+      elevation:
+        5,
+
+    },
+
+
+    // ======================================================
+    // ANIMATED VEHICLE
+    // ======================================================
+
+    vehicleCircle: {
+
+      width:
+        80,
+
+      height:
+        80,
+
+      borderRadius:
+        40,
+
+      backgroundColor:
+        "#f1f1f1",
+
+      alignSelf:
+        "center",
+
+      justifyContent:
+        "center",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        10,
+
+    },
+
+
+    vehicleIcon: {
+
+      fontSize:
+        42,
+
+      textAlign:
+        "center",
+
+    },
+
+
+    // ======================================================
+    // TITLE
+    // ======================================================
+
+    title: {
+
+      fontSize:
+        18,
+
+      fontWeight:
+        "bold",
+
+      marginBottom:
+        10,
+
+      textAlign:
+        "center",
+
+    },
+
+
+    // ======================================================
+    // DRIVER
+    // ======================================================
+
+    driverName: {
+
+      fontSize:
+        22,
+
+      fontWeight:
+        "bold",
+
+      marginBottom:
+        8,
+
+      textAlign:
+        "center",
+
+    },
+
+
+    // ======================================================
+    // INFORMATION
+    // ======================================================
+
+    info: {
+
+      fontSize:
+        16,
+
+      marginBottom:
+        4,
+
+    },
+
+
+    // ======================================================
+    // SEARCHING
+    // ======================================================
+
+    loadingBox: {
+
+      alignItems:
+        "center",
+
+      paddingVertical:
+        20,
+
+    },
+
+
+    vehicleSearchCircle: {
+
+      width:
+        90,
+
+      height:
+        90,
+
+      borderRadius:
+        45,
+
+      backgroundColor:
+        "#f1f1f1",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        12,
+
+    },
+
+
+    searchVehicleIcon: {
+
+      fontSize:
+        50,
+
+      textAlign:
+        "center",
+
+    },
+
+
+    loadingText: {
+
+      opacity:
+        0.6,
+
+      fontSize:
+        15,
+
+    },
+
+
+    // ======================================================
+    // STATUS
+    // ======================================================
+
+    statusBox: {
+
+      marginTop:
+        15,
+
+      padding:
+        12,
+
+      borderRadius:
+        10,
+
+      backgroundColor:
+        "#f1f5f9",
+
+      alignItems:
+        "center",
+
+    },
+
+
+    statusText: {
+
+      fontSize:
+        15,
+
+      fontWeight:
+        "600",
+
+    },
+
+
+    // ======================================================
+    // CONFIRM BUTTON
+    // ======================================================
+
+    confirmButton: {
+
+      marginTop:
+        15,
+
+      backgroundColor:
+        "#22c55e",
+
+      padding:
+        15,
+
+      borderRadius:
+        12,
+
+      alignItems:
+        "center",
+
+    },
+
+
+    confirmText: {
+
+      color:
+        "white",
+
+      fontWeight:
+        "bold",
+
+      fontSize:
+        16,
+
+    },
+
+  });
+
+
 export default SearchingDriver;
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  map: { flex: 1 },
-
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  card: {
-    position: "absolute",
-    bottom: 20,
-    left: 15,
-    right: 15,
-    backgroundColor: "white",
-    borderRadius: 20,
-    padding: 20,
-    elevation: 5,
-  },
-
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-
-  driverName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-
-  info: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-
-  loadingBox: {
-    alignItems: "center",
-    paddingVertical: 20,
-  },
-
-  pulse: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "green",
-    marginBottom: 10,
-  },
-
-  loadingText: {
-    opacity: 0.6,
-  },
-
-  confirmButton: {
-    marginTop: 15,
-    backgroundColor: "#22c55e",
-    padding: 15,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-
-  confirmText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-});

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, {useState} from "react";
 
 import {
   View,
@@ -10,15 +10,16 @@ import {
 } from "react-native";
 
 import {
-  lipaDb,
-} from "../firebase/firebase";
+  getPhoneConfirmation,
+  clearPhoneConfirmation,
+} from "../firebase/phoneAuth";
 
 
-const VerifyOTP = ({ route, navigation }) => {
+const VerifyOTP = ({navigation}) => {
 
-  const { confirmation } =
-    route.params || {};
-
+  // ==================================================
+  // STATE
+  // ==================================================
 
   const [code, setCode] =
     useState("");
@@ -27,17 +28,74 @@ const VerifyOTP = ({ route, navigation }) => {
     useState(false);
 
 
+  // ==================================================
+  // VERIFY SMS CODE
+  // ==================================================
 
   const verifyCode = async () => {
 
-    if (loading) return;
+    if (loading) {
+      return;
+    }
 
 
-    if (!code.trim()) {
+    // ==================================================
+    // GET SMS AUTHENTICATION SESSION
+    // ==================================================
+
+    const confirmation =
+      getPhoneConfirmation();
+
+
+    // ==================================================
+    // CHECK CONFIRMATION
+    // ==================================================
+
+    if (!confirmation) {
+
+      console.log(
+        "❌ NO SMS CONFIRMATION OBJECT"
+      );
+
+      Alert.alert(
+        "Verification Error",
+        "Your verification session has expired. Please request a new code."
+      );
+
+      navigation.goBack();
+
+      return;
+    }
+
+
+    // ==================================================
+    // CHECK CODE
+    // ==================================================
+
+    const trimmedCode =
+      code.trim();
+
+
+    if (!trimmedCode) {
 
       Alert.alert(
         "Missing Code",
         "Enter the SMS verification code."
+      );
+
+      return;
+    }
+
+
+    // ==================================================
+    // CODE MUST BE 6 DIGITS
+    // ==================================================
+
+    if (!/^\d{6}$/.test(trimmedCode)) {
+
+      Alert.alert(
+        "Invalid Code",
+        "Please enter the 6-digit verification code."
       );
 
       return;
@@ -49,85 +107,146 @@ const VerifyOTP = ({ route, navigation }) => {
       setLoading(true);
 
 
-      const result =
-        await confirmation.confirm(code);
+      console.log(
+        "🔐 VERIFYING SMS CODE..."
+      );
 
+
+      // ==================================================
+      // FIREBASE PHONE AUTHENTICATION
+      // ==================================================
+
+      const result =
+        await confirmation.confirm(
+          trimmedCode
+        );
+
+
+      // ==================================================
+      // GET FIREBASE USER
+      // ==================================================
 
       const user =
-        result.user;
+        result?.user;
 
-      if (!result?.user) {
-        throw new Error("Authentication failed.");
+
+      if (!user) {
+
+        throw new Error(
+          "Firebase did not return an authenticated user."
+        );
       }
+
+
+      // ==================================================
+      // AUTHENTICATED USER INFORMATION
+      // ==================================================
 
       const uid =
         user.uid;
 
+      const phoneNumber =
+        user.phoneNumber;
+
 
       console.log(
-        "AUTH UID:",
+        "✅ SMS AUTHENTICATION SUCCESSFUL"
+      );
+
+      console.log(
+        "🆔 FIREBASE UID:",
         uid
       );
 
-
-      /*
-        Check if passenger profile exists
-
-        KandoLipa
-             |
-             passenger
-                  |
-                  UID
-      */
+      console.log(
+        "📱 PHONE NUMBER:",
+        phoneNumber
+      );
 
 
-      const snapshot = await lipaDb
-        .ref(`KandoLipa/passenger/${uid}`)
-        .once("value");
+      // ==================================================
+      // CLEAR SMS SESSION
+      // ==================================================
+
+      clearPhoneConfirmation();
 
 
+      // ==================================================
+      // GO TO CREATE USER
+      //
+      // Firebase Authentication is now complete.
+      //
+      // CreateUser will collect the client's
+      // personal information.
+      //
+      // KandoLipa
+      // └── clients
+      //     └── {uid}
+      // ==================================================
 
-      if (snapshot.exists()) {
-
-
-        console.log(
-          "Existing passenger"
-        );
-
-
-        navigation.replace(
-          "Home"
-        );
-
-
-      } else {
-
-
-        console.log(
-          "New passenger"
-        );
-
-
-        navigation.replace(
-          "CompleteProfile"
-        );
+      navigation.replace(
+        "CreateUser",
+        {
+          uid,
+          phoneNumber,
+        }
+      );
 
 
-      }
-
-
-    } catch(error) {
-
+    } catch (error) {
 
       console.log(
-        "OTP ERROR:",
+        "❌ SMS VERIFICATION ERROR:",
         error
       );
+
+      console.log(
+        "❌ ERROR CODE:",
+        error?.code
+      );
+
+      console.log(
+        "❌ ERROR MESSAGE:",
+        error?.message
+      );
+
+
+      // ==================================================
+      // USER-FRIENDLY ERRORS
+      // ==================================================
+
+      let message =
+        "Unable to verify the SMS code. Please try again.";
+
+
+      if (
+        error?.code ===
+        "auth/invalid-verification-code"
+      ) {
+
+        message =
+          "The SMS verification code is incorrect.";
+
+      } else if (
+        error?.code ===
+        "auth/code-expired"
+      ) {
+
+        message =
+          "The SMS verification code has expired. Please request a new code.";
+
+      } else if (
+        error?.message
+      ) {
+
+        message =
+          error.message;
+      }
 
 
       Alert.alert(
         "Verification Failed",
-        "Incorrect code. Please try again."
+        message
       );
 
 
@@ -140,11 +259,13 @@ const VerifyOTP = ({ route, navigation }) => {
   };
 
 
+  // ==================================================
+  // UI
+  // ==================================================
 
   return (
 
     <View style={styles.container}>
-
 
       <Text style={styles.title}>
         Verify Phone Number
@@ -154,7 +275,6 @@ const VerifyOTP = ({ route, navigation }) => {
       <Text style={styles.subtitle}>
         Enter the SMS code sent to your phone
       </Text>
-
 
 
       <TextInput
@@ -171,13 +291,20 @@ const VerifyOTP = ({ route, navigation }) => {
 
         onChangeText={setCode}
 
-      />
+        editable={!loading}
 
+        autoFocus={true}
+
+      />
 
 
       <TouchableOpacity
 
-        style={styles.button}
+        style={[
+          styles.button,
+          loading &&
+            styles.buttonDisabled,
+        ]}
 
         onPress={verifyCode}
 
@@ -187,80 +314,103 @@ const VerifyOTP = ({ route, navigation }) => {
 
         <Text style={styles.buttonText}>
 
-          {
-            loading
+          {loading
             ? "Verifying..."
-            : "Verify"
-          }
+            : "Verify"}
 
         </Text>
 
-
       </TouchableOpacity>
-
 
     </View>
 
   );
-
 };
 
 
 export default VerifyOTP;
 
 
+// ======================================================
+// STYLES
+// ======================================================
 
 const styles = StyleSheet.create({
 
-  container:{
-    flex:1,
-    justifyContent:"center",
-    padding:20,
-    backgroundColor:"#FFF2A0",
+  container: {
+    flex: 1,
+
+    justifyContent: "center",
+
+    padding: 20,
+
+    backgroundColor: "#FFF2A0",
   },
 
 
-  title:{
-    fontSize:26,
-    fontWeight:"bold",
-    textAlign:"center",
-    marginBottom:10,
+  title: {
+    fontSize: 26,
+
+    fontWeight: "bold",
+
+    textAlign: "center",
+
+    marginBottom: 10,
   },
 
 
-  subtitle:{
-    textAlign:"center",
-    marginBottom:30,
-    opacity:0.7,
+  subtitle: {
+    textAlign: "center",
+
+    marginBottom: 30,
+
+    opacity: 0.7,
   },
 
 
-  input:{
-    backgroundColor:"#fff",
-    borderWidth:1,
-    borderColor:"#ddd",
-    borderRadius:10,
-    padding:18,
-    fontSize:22,
-    textAlign:"center",
-    letterSpacing:10,
-    marginBottom:20,
+  input: {
+    backgroundColor: "#fff",
+
+    borderWidth: 1,
+
+    borderColor: "#ddd",
+
+    borderRadius: 10,
+
+    padding: 18,
+
+    fontSize: 22,
+
+    textAlign: "center",
+
+    letterSpacing: 10,
+
+    marginBottom: 20,
   },
 
 
-  button:{
-    backgroundColor:"#22c55e",
-    padding:16,
-    borderRadius:10,
-    alignItems:"center",
+  button: {
+    backgroundColor: "#22c55e",
+
+    padding: 16,
+
+    borderRadius: 10,
+
+    alignItems: "center",
   },
 
 
-  buttonText:{
-    color:"#fff",
-    fontWeight:"bold",
-    fontSize:17,
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
+
+  buttonText: {
+    color: "#fff",
+
+    fontWeight: "bold",
+
+    fontSize: 17,
+  },
 
 });
