@@ -83,10 +83,80 @@ const FetchingDriver = ({
   );
 
 
+  // ====================================================
+  // CONFIRMATION STATE
+  // ====================================================
+  //
+  // isConfirming:
+  // Shows "Finding Driver..."
+  //
+  // confirmationLocked:
+  // The button is permanently disabled after the
+  // passenger presses Confirm Pickup.
+  //
+  // IMPORTANT:
+  // confirmationLocked is NOT turned back to false
+  // anywhere after confirmation starts.
+  // ====================================================
+
   const [
     isConfirming,
     setIsConfirming,
   ] = useState(false);
+
+
+  const [
+    confirmationLocked,
+    setConfirmationLocked,
+  ] = useState(false);
+
+
+  // ====================================================
+  // ABSOLUTE INSTANT LOCK
+  // ====================================================
+  //
+  // This is the FIRST protection against double taps.
+  //
+  // useRef changes synchronously.
+  //
+  // Once true, it stays true for the entire lifetime
+  // of this FetchingDriver screen.
+  // ====================================================
+
+  const confirmationLockedRef =
+    useRef(false);
+
+
+  // ====================================================
+  // NAVIGATION LOCK
+  // ====================================================
+  //
+  // Prevents navigation from being requested twice.
+  // ====================================================
+
+  const navigationStartedRef =
+    useRef(false);
+
+
+  // ====================================================
+  // SCREEN MOUNT TRACKER
+  // ====================================================
+
+  const isMountedRef =
+    useRef(true);
+
+
+  useEffect(() => {
+
+    isMountedRef.current = true;
+
+    return () => {
+
+      isMountedRef.current = false;
+
+    };
+
+  }, []);
 
 
   // ====================================================
@@ -95,6 +165,22 @@ const FetchingDriver = ({
 
   const useCurrentLocation =
     async () => {
+
+      // Never allow location changes after
+      // confirmation has started.
+
+      if (
+        confirmationLockedRef.current
+      ) {
+
+        console.log(
+          "⚠️ CONFIRMATION LOCKED - LOCATION CHANGE IGNORED"
+        );
+
+        return;
+
+      }
+
 
       try {
 
@@ -206,8 +292,11 @@ const FetchingDriver = ({
           edgePadding: {
 
             top: 100,
+
             right: 50,
+
             bottom: 250,
+
             left: 50,
 
           },
@@ -233,14 +322,26 @@ const FetchingDriver = ({
   const confirmPickup =
     async () => {
 
-      // ------------------------------------------------
-      // PREVENT DOUBLE TAP
-      // ------------------------------------------------
+      // ==================================================
+      // ABSOLUTE FIRST LINE
+      // ==================================================
+      //
+      // If confirmation has EVER started on this screen,
+      // ignore every subsequent tap.
+      //
+      // NO await happens before this check.
+      // ==================================================
 
-      if (isConfirming) {
+      if (
+        confirmationLockedRef.current
+      ) {
 
         console.log(
-          "⚠️ MATCH DRIVER ALREADY RUNNING"
+          "🚫🚫🚫 CONFIRM PICKUP IS ALREADY PERMANENTLY LOCKED"
+        );
+
+        console.log(
+          "🚫 SECOND TAP IGNORED"
         );
 
         return;
@@ -248,9 +349,47 @@ const FetchingDriver = ({
       }
 
 
-      // ------------------------------------------------
+      // ==================================================
+      // PERMANENT LOCK
+      // ==================================================
+      //
+      // These happen immediately.
+      //
+      // The ref locks synchronously.
+      // The state locks the UI.
+      //
+      // IMPORTANT:
+      // We NEVER set this ref back to false.
+      // ==================================================
+
+      confirmationLockedRef.current =
+        true;
+
+      setConfirmationLocked(true);
+
+      setIsConfirming(true);
+
+
+      console.log(
+        "=================================================="
+      );
+
+      console.log(
+        "🔒🔒🔒 CONFIRM PICKUP PERMANENTLY LOCKED"
+      );
+
+      console.log(
+        "🔒 SECOND TAP WILL NEVER BE ACCEPTED"
+      );
+
+      console.log(
+        "=================================================="
+      );
+
+
+      // ==================================================
       // AUTH
-      // ------------------------------------------------
+      // ==================================================
 
       const user =
         auth().currentUser;
@@ -262,6 +401,23 @@ const FetchingDriver = ({
           "❌ NO LOGGED IN USER"
         );
 
+        /*
+         * IMPORTANT:
+         *
+         * DO NOT UNLOCK.
+         *
+         * The confirmation has already been consumed.
+         * The user can go back Home and start again.
+         */
+
+        if (
+          isMountedRef.current
+        ) {
+
+          setIsConfirming(false);
+
+        }
+
         return;
 
       }
@@ -272,6 +428,7 @@ const FetchingDriver = ({
 
 
       console.log("");
+
       console.log(
         "=================================================="
       );
@@ -305,15 +462,23 @@ const FetchingDriver = ({
       );
 
 
-      // ------------------------------------------------
+      // ==================================================
       // VALIDATION
-      // ------------------------------------------------
+      // ==================================================
 
       if (!pickupLocation) {
 
         console.log(
           "❌ PICKUP LOCATION MISSING"
         );
+
+        if (
+          isMountedRef.current
+        ) {
+
+          setIsConfirming(false);
+
+        }
 
         return;
 
@@ -326,6 +491,14 @@ const FetchingDriver = ({
           "❌ DESTINATION MISSING"
         );
 
+        if (
+          isMountedRef.current
+        ) {
+
+          setIsConfirming(false);
+
+        }
+
         return;
 
       }
@@ -337,15 +510,20 @@ const FetchingDriver = ({
           "❌ SELECTED RIDE MISSING"
         );
 
+        if (
+          isMountedRef.current
+        ) {
+
+          setIsConfirming(false);
+
+        }
+
         return;
 
       }
 
 
       try {
-
-        setIsConfirming(true);
-
 
         // ==============================================
         // CALL SERVER
@@ -394,11 +572,9 @@ const FetchingDriver = ({
 
         if (!result?.data) {
 
-          console.log(
-            "❌ EMPTY SERVER RESPONSE"
+          throw new Error(
+            "Empty server response"
           );
-
-          return;
 
         }
 
@@ -407,21 +583,16 @@ const FetchingDriver = ({
           result.data.success === false
         ) {
 
-          console.log(
-            "❌ SERVER REPORTED FAILURE:",
-            result.data
+          throw new Error(
+            result.data.message ||
+            "Driver matching failed"
           );
-
-          return;
 
         }
 
 
         // ==============================================
         // REQUEST ID
-        //
-        // Preserve it if server supplied one.
-        // DO NOT BLOCK NAVIGATION if it isn't supplied.
         // ==============================================
 
         const serverRequestId =
@@ -461,17 +632,9 @@ const FetchingDriver = ({
 
         if (!selectedData) {
 
-          console.log(
-            "❌ SELECTED RIDE DATA NOT FOUND:",
-            selectedRide
+          throw new Error(
+            `Selected ride data not found: ${selectedRide}`
           );
-
-          console.log(
-            "AVAILABLE SERVER DATA:",
-            result.data
-          );
-
-          return;
 
         }
 
@@ -490,7 +653,7 @@ const FetchingDriver = ({
 
           ...selectedData,
 
-          // Preserve existing fields from rideData
+          // Preserve existing fields
           ...rideData,
 
           // Server response gets priority
@@ -540,19 +703,47 @@ const FetchingDriver = ({
         // SAVE LOCALLY
         // ==============================================
 
-        setCurrentRideData(
-          searchingRideData
-        );
+        if (
+          isMountedRef.current
+        ) {
+
+          setCurrentRideData(
+            searchingRideData
+          );
+
+        }
+
+
+        // ==============================================
+        // PREVENT DUPLICATE NAVIGATION
+        // ==============================================
+
+        if (
+          navigationStartedRef.current
+        ) {
+
+          console.log(
+            "🚫 NAVIGATION ALREADY STARTED - IGNORING"
+          );
+
+          return;
+
+        }
+
+
+        navigationStartedRef.current =
+          true;
 
 
         // ==============================================
         // NAVIGATION
-        //
-        // IMPORTANT:
-        // Navigation is NOT blocked by request_id.
         // ==============================================
 
         console.log("");
+
+        console.log(
+          "🔒 CONFIRMATION REMAINS PERMANENTLY LOCKED"
+        );
 
         console.log(
           "🚀🚀🚀 NAVIGATING TO SEARCHING DRIVER"
@@ -581,6 +772,10 @@ const FetchingDriver = ({
 
         console.log(
           "✅ NAVIGATION SENT"
+        );
+
+        console.log(
+          "🔒 CONFIRM PICKUP REMAINS LOCKED"
         );
 
 
@@ -613,11 +808,38 @@ const FetchingDriver = ({
         );
 
 
-      } finally {
+        // ==================================================
+        // VERY IMPORTANT
+        // ==================================================
+        //
+        // DO NOT DO THIS:
+        //
+        // confirmingRef.current = false;
+        // setConfirmationLocked(false);
+        //
+        // DO NOT UNLOCK THE BUTTON.
+        //
+        // The passenger has already confirmed the ride.
+        // They must not be able to send another request
+        // from this screen.
+        // ==================================================
 
-        setIsConfirming(
-          false
+        console.log(
+          "🔒🔒🔒 CONFIRM PICKUP REMAINS PERMANENTLY LOCKED"
         );
+
+        console.log(
+          "🚫 USER CANNOT SUBMIT ANOTHER REQUEST"
+        );
+
+
+        if (
+          isMountedRef.current
+        ) {
+
+          setIsConfirming(false);
+
+        }
 
       }
 
@@ -693,7 +915,9 @@ const FetchingDriver = ({
 
         <Marker
 
-          draggable
+          draggable={
+            !confirmationLocked
+          }
 
           coordinate={
             pickupLocation
@@ -705,6 +929,22 @@ const FetchingDriver = ({
 
           onDragEnd={
             (event) => {
+
+              // NEVER allow pickup movement after
+              // confirmation has started.
+
+              if (
+                confirmationLockedRef.current
+              ) {
+
+                console.log(
+                  "🚫 PICKUP MOVEMENT BLOCKED"
+                );
+
+                return;
+
+              }
+
 
               setPickupLocation(
                 event.nativeEvent.coordinate
@@ -791,7 +1031,12 @@ const FetchingDriver = ({
           }
         >
 
-          Confirm pickup location
+          {isConfirming
+            ? "Finding your driver..."
+            : confirmationLocked
+            ? "Confirmation submitted"
+            : "Confirm pickup location"
+          }
 
         </Text>
 
@@ -828,6 +1073,7 @@ const FetchingDriver = ({
           >
 
             Request:{" "}
+
             {currentRideData.request_id}
 
           </Text>
@@ -839,16 +1085,25 @@ const FetchingDriver = ({
 
         <TouchableOpacity
 
-          style={
-            styles.locationButton
-          }
+          style={[
+            styles.locationButton,
+
+            confirmationLocked &&
+              styles.disabledButton,
+          ]}
 
           onPress={
             useCurrentLocation
           }
 
           disabled={
-            isConfirming
+            confirmationLocked
+          }
+
+          activeOpacity={
+            confirmationLocked
+              ? 1
+              : 0.7
           }
 
         >
@@ -866,7 +1121,9 @@ const FetchingDriver = ({
         </TouchableOpacity>
 
 
-        {/* CONFIRM PICKUP */}
+        {/* ==================================================
+            CONFIRM PICKUP
+        ================================================== */}
 
         <TouchableOpacity
 
@@ -874,7 +1131,7 @@ const FetchingDriver = ({
 
             styles.confirmButton,
 
-            isConfirming &&
+            confirmationLocked &&
               styles.disabledButton,
 
           ]}
@@ -884,7 +1141,13 @@ const FetchingDriver = ({
           }
 
           disabled={
-            isConfirming
+            confirmationLocked
+          }
+
+          activeOpacity={
+            confirmationLocked
+              ? 1
+              : 0.7
           }
 
         >
@@ -897,6 +1160,8 @@ const FetchingDriver = ({
 
             {isConfirming
               ? "Finding Driver..."
+              : confirmationLocked
+              ? "Confirmation Submitted"
               : "Confirm Pickup"
             }
 
@@ -905,7 +1170,9 @@ const FetchingDriver = ({
         </TouchableOpacity>
 
 
-        {/* BACK HOME */}
+        {/* ==================================================
+            BACK HOME
+        ================================================== */}
 
         <TouchableOpacity
 
@@ -913,14 +1180,45 @@ const FetchingDriver = ({
             styles.backButton
           }
 
-          onPress={() =>
+          onPress={() => {
+
+            /*
+             * Back Home is blocked while the request
+             * is actively being submitted.
+             *
+             * If the request fails, isConfirming becomes
+             * false but confirmationLocked stays true,
+             * allowing the passenger to leave this screen
+             * without being able to submit another request.
+             */
+
+            if (
+              isConfirming
+            ) {
+
+              console.log(
+                "🚫 REQUEST STILL PROCESSING - BACK HOME BLOCKED"
+              );
+
+              return;
+
+            }
+
+
             navigation.navigate(
               "Home"
-            )
-          }
+            );
+
+          }}
 
           disabled={
             isConfirming
+          }
+
+          activeOpacity={
+            isConfirming
+              ? 1
+              : 0.7
           }
 
         >
@@ -957,116 +1255,157 @@ const styles =
       flex: 1,
     },
 
+
     map: {
       flex: 1,
     },
 
+
     loading: {
       flex: 1,
+
       justifyContent:
         "center",
+
       alignItems:
         "center",
     },
+
 
     bottomCard: {
       position:
         "absolute",
+
       bottom:
         20,
+
       left:
         15,
+
       right:
         15,
+
       backgroundColor:
         "white",
+
       borderRadius:
         15,
+
       padding:
         20,
+
       elevation:
         5,
+
       shadowOpacity:
         0.2,
+
       shadowRadius:
         5,
     },
 
+
     title: {
       fontSize:
         22,
+
       fontWeight:
         "bold",
     },
+
 
     subtitle: {
       marginTop:
         5,
+
       opacity:
         0.6,
     },
 
+
     fare: {
       fontSize:
         24,
+
       fontWeight:
         "bold",
+
       marginTop:
         15,
     },
+
 
     requestId: {
       fontSize:
         11,
+
       marginTop:
         5,
+
       opacity:
         0.5,
     },
 
+
     locationButton: {
       marginTop:
         15,
+
       padding:
         15,
+
       borderRadius:
         10,
+
       alignItems:
         "center",
+
       backgroundColor:
         "#d9f99d",
     },
 
+
     confirmButton: {
       marginTop:
         10,
+
       padding:
         15,
+
       borderRadius:
         10,
+
       alignItems:
         "center",
+
       backgroundColor:
         "#a5e75a",
     },
+
 
     disabledButton: {
       opacity:
         0.5,
     },
 
+
     backButton: {
       marginTop:
         10,
+
       padding:
         15,
+
       borderRadius:
         10,
+
       alignItems:
         "center",
+
       backgroundColor:
         "#fde68a",
     },
+
 
     buttonText: {
       fontWeight:
@@ -1077,4 +1416,3 @@ const styles =
 
 
 export default FetchingDriver;
-

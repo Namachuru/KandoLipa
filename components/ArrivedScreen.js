@@ -1,12 +1,14 @@
 import React, { useState } from "react";
+
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from "react-native";
-import { ref, set } from "firebase/database";
-import { faidaDb } from "../firebase/firebase";
+
+import { getFaidaDb } from "../firebase/firebase";
 
 const ArrivedScreen = ({ route, navigation }) => {
   const {
@@ -15,48 +17,179 @@ const ArrivedScreen = ({ route, navigation }) => {
     finalFare,
     actualDistanceKm,
     actualMinutes,
-  } = route.params;
+    requestId,
+    clientId,
+  } = route.params || {};
 
   const [rating, setRating] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const submitRating = async () => {
-    if (rating < 1) return;
+    if (rating < 1 || submitting) {
+      return;
+    }
+
+    if (!driver?.mp_id) {
+      Alert.alert(
+        "Rating Error",
+        "Driver ID was not found. The rating could not be submitted."
+      );
+      return;
+    }
 
     try {
-      await set(
-        ref(
-          faidaDb,
-          `KandoFaida/mobility_partners/${driver.mp_id}/ratings/${Date.now()}`
-        ),
-        rating
-      );
+      setSubmitting(true);
 
+      console.log("=================================");
+      console.log("⭐ SUBMITTING DRIVER RATING");
+      console.log("MP ID:", driver.mp_id);
+      console.log("GIVEN RATING:", rating);
+      console.log("=================================");
+
+      // Get the KandoFaida database.
+      const db = await getFaidaDb();
+
+      console.log("🔥 FAIDA DATABASE READY:", !!db);
+
+      if (!db) {
+        throw new Error(
+          "KandoFaida database could not be initialized."
+        );
+      }
+
+      const statsPath =
+        `KandoFaida/mobility_partners/${driver.mp_id}/stats`;
+
+      console.log("📍 RATING STATS PATH:", statsPath);
+
+      // Use the React Native Firebase database instance API.
+      const statsRef = db.ref(statsPath);
+
+      console.log("📡 STARTING RATING TRANSACTION...");
+
+      await statsRef.transaction((currentStats) => {
+        console.log("📥 CURRENT STATS:", currentStats);
+
+        const currentNumRatings = Number(
+          currentStats?.numRatings || 0
+        );
+
+        const currentAverage = Number(
+          currentStats?.rating || 0
+        );
+
+        /*
+         * Your requested calculation:
+         *
+         * (currentAverage + givenRating)
+         * --------------------------------
+         * (currentNumRatings + 1)
+         */
+
+        const newNumRatings =
+          currentNumRatings + 1;
+
+        const newAverage =
+          (currentAverage + rating) /
+          newNumRatings;
+
+        console.log(
+          "📊 CURRENT NUM RATINGS:",
+          currentNumRatings
+        );
+
+        console.log(
+          "⭐ CURRENT AVERAGE:",
+          currentAverage
+        );
+
+        console.log(
+          "⭐ GIVEN RATING:",
+          rating
+        );
+
+        console.log(
+          "📊 NEW NUM RATINGS:",
+          newNumRatings
+        );
+
+        console.log(
+          "⭐ NEW AVERAGE:",
+          newAverage
+        );
+
+        return {
+          ...(currentStats || {}),
+          numRatings: newNumRatings,
+          rating: Number(
+            newAverage.toFixed(2)
+          ),
+        };
+      });
+
+      console.log("=================================");
+      console.log(
+        "✅ DRIVER RATING UPDATED SUCCESSFULLY"
+      );
+      console.log("MP ID:", driver.mp_id);
+      console.log("=================================");
+
+      // Only return Home after Firebase confirms success.
       navigation.reset({
         index: 0,
-        routes: [{ name: "Home" }],
+        routes: [
+          {
+            name: "Home",
+          },
+        ],
       });
+
     } catch (error) {
-      console.log(error);
+      console.log("=================================");
+      console.log("❌ RATING SUBMISSION ERROR");
+      console.log("ERROR:", error);
+      console.log(
+        "ERROR MESSAGE:",
+        error?.message
+      );
+      console.log(
+        "ERROR STACK:",
+        error?.stack
+      );
+      console.log("=================================");
+
+      setSubmitting(false);
+
+      Alert.alert(
+        "Rating Failed",
+        error?.message ||
+          "Your rating could not be submitted. Please try again."
+      );
     }
   };
 
   return (
     <View style={styles.container}>
+
       <Text style={styles.header}>
         Trip Completed
       </Text>
 
       <Text style={styles.driver}>
-        Driver: {driver.full_name}
+        Driver:{" "}
+        {driver?.full_name || "Driver"}
       </Text>
 
       <View style={styles.card}>
+
         <Text style={styles.label}>
           Vehicle
         </Text>
 
         <Text style={styles.value}>
-          {rideData.type}
+          {rideData?.type ||
+            rideData?.selectedRide ||
+            "N/A"}
         </Text>
 
         <Text style={styles.label}>
@@ -64,7 +197,10 @@ const ArrivedScreen = ({ route, navigation }) => {
         </Text>
 
         <Text style={styles.value}>
-          {actualDistanceKm.toFixed(2)} km
+          {Number(
+            actualDistanceKm || 0
+          ).toFixed(2)}{" "}
+          km
         </Text>
 
         <Text style={styles.label}>
@@ -72,7 +208,10 @@ const ArrivedScreen = ({ route, navigation }) => {
         </Text>
 
         <Text style={styles.value}>
-          {actualMinutes.toFixed(1)} min
+          {Number(
+            actualMinutes || 0
+          ).toFixed(1)}{" "}
+          min
         </Text>
 
         <Text style={styles.fareTitle}>
@@ -80,8 +219,12 @@ const ArrivedScreen = ({ route, navigation }) => {
         </Text>
 
         <Text style={styles.fare}>
-          TSh {finalFare.toLocaleString()}
+          TSh{" "}
+          {Number(
+            finalFare || 0
+          ).toLocaleString()}
         </Text>
+
       </View>
 
       <Text style={styles.rateText}>
@@ -89,17 +232,21 @@ const ArrivedScreen = ({ route, navigation }) => {
       </Text>
 
       <View style={styles.starRow}>
+
         {[1, 2, 3, 4, 5].map((star) => (
           <TouchableOpacity
             key={star}
             onPress={() => setRating(star)}
+            disabled={submitting}
           >
             <Text
               style={[
                 styles.star,
                 {
                   opacity:
-                    rating >= star ? 1 : 0.3,
+                    rating >= star
+                      ? 1
+                      : 0.3,
                 },
               ]}
             >
@@ -107,16 +254,31 @@ const ArrivedScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
         ))}
+
       </View>
 
       <TouchableOpacity
-        style={styles.button}
+        style={[
+          styles.button,
+          {
+            opacity:
+              rating < 1 || submitting
+                ? 0.5
+                : 1,
+          },
+        ]}
         onPress={submitRating}
+        disabled={
+          rating < 1 || submitting
+        }
       >
         <Text style={styles.buttonText}>
-          Submit Rating
+          {submitting
+            ? "Submitting..."
+            : "Submit Rating"}
         </Text>
       </TouchableOpacity>
+
     </View>
   );
 };
@@ -205,3 +367,4 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
 });
+

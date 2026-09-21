@@ -12,6 +12,7 @@ import {
   Linking,
   TouchableOpacity,
   Alert,
+  Image,
 } from "react-native";
 
 import MapView, {
@@ -58,7 +59,7 @@ const ARRIVAL_DISTANCE_METERS = 50;
 
 const DESTINATION_DISTANCE_METERS = 60;
 
-const DESTINATION_CONFIRMATIONS = 3;
+const DESTINATION_CONFIRMATIONS = 1;
 
 
 // =========================================================
@@ -239,11 +240,6 @@ export default function DriverApproachingScreen({
   // =======================================================
   // IMPORTANT REFS
   // =======================================================
-  //
-  // These prevent stale values inside the Firebase
-  // location callback.
-  //
-  // =======================================================
 
   const driverArrivedRef =
     useRef(false);
@@ -353,14 +349,6 @@ export default function DriverApproachingScreen({
 
   // =======================================================
   // START TRIP ON SERVER
-  // =======================================================
-  //
-  // IMPORTANT:
-  // There is NO Date.now() here.
-  //
-  // The Cloud Function records the official server
-  // timestamp when the trip starts.
-  //
   // =======================================================
 
   const startTripOnServer = async () => {
@@ -476,15 +464,6 @@ export default function DriverApproachingScreen({
 
   // =======================================================
   // COMPLETE TRIP ON SERVER
-  // =======================================================
-  //
-  // The SERVER calculates:
-  //
-  // - trip duration
-  // - final fare
-  //
-  // We do NOT calculate trip time on this device.
-  //
   // =======================================================
 
   const completeTripOnServer = async () => {
@@ -1089,12 +1068,6 @@ export default function DriverApproachingScreen({
                 // =================================================
                 // ACTUAL TRIP DISTANCE
                 // =================================================
-                //
-                // This is ONLY distance.
-                //
-                // The timer is NOT calculated here.
-                //
-                // =================================================
 
                 if (
                   driverArrivedRef.current &&
@@ -1490,41 +1463,33 @@ export default function DriverApproachingScreen({
         {validDriverLocation && (
 
           <Marker
-
-            key={`driver-${mpId}-${effectiveRideType}`}
-
-            coordinate={{
-              latitude:
-                driverLocation.latitude,
-
-              longitude:
-                driverLocation.longitude,
-            }}
-
-            title={
-              driver?.full_name ||
-              driver?.name ||
-              "Driver"
-            }
-
-            description={
-              driverArrived
-                ? "Driver has arrived"
-                : "Driver is approaching"
-            }
-
-            image={
-              driverMarkerIcon
-            }
-
-            anchor={{
-              x: 0.5,
-              y: 0.5,
-            }}
-
-            tracksViewChanges={false}
-
-          />
+  key={`driver-${mpId}-${effectiveRideType}`}
+  coordinate={{
+    latitude: driverLocation.latitude,
+    longitude: driverLocation.longitude,
+  }}
+  title={
+    driver?.full_name ||
+    driver?.name ||
+    "Driver"
+  }
+  description={
+    driverArrived
+      ? "Driver has arrived"
+      : "Driver is approaching"
+  }
+  anchor={{
+    x: 0.5,
+    y: 0.5,
+  }}
+  tracksViewChanges={true}
+>
+  <Image
+    source={driverMarkerIcon}
+    style={styles.driverMarkerImage}
+    resizeMode="contain"
+  />
+</Marker>
 
         )}
 
@@ -1997,6 +1962,16 @@ const styles =
 
     map: {
       flex: 1,
+    },
+
+
+    // -------------------------------------------------------
+    // DRIVER SATELLITE MARKER
+    // -------------------------------------------------------
+
+    driverMarkerImage: {
+      width: 44,
+      height: 44,
     },
 
 

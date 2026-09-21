@@ -1,4 +1,4 @@
-import React, {useState} from "react";
+import React, { useState } from "react";
 
 import {
   View,
@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 
+import auth from "@react-native-firebase/auth";
+
 import {
   ref,
   set,
@@ -20,17 +22,7 @@ import {
 } from "../firebase/firebase";
 
 
-const CreateUser = ({route, navigation}) => {
-
-  // ==================================================
-  // AUTHENTICATED USER DATA
-  // ==================================================
-
-  const {
-    uid,
-    phoneNumber,
-  } = route.params || {};
-
+const CreateUser = ({ navigation }) => {
 
   // ==================================================
   // FORM STATE
@@ -47,7 +39,7 @@ const CreateUser = ({route, navigation}) => {
 
 
   // ==================================================
-  // CREATE CLIENT
+  // CREATE USER
   // ==================================================
 
   const createUser = async () => {
@@ -57,74 +49,61 @@ const CreateUser = ({route, navigation}) => {
     }
 
 
-    // ==================================================
-    // CHECK AUTH DATA
-    // ==================================================
-
-    if (!uid) {
-
-      console.log(
-        "❌ CREATE USER: Firebase UID missing"
-      );
-
-      Alert.alert(
-        "Authentication Error",
-        "Your authenticated user could not be identified. Please log in again."
-      );
-
-      return;
-    }
-
-
-    // ==================================================
-    // CLEAN INPUT
-    // ==================================================
-
-    const cleanFirstName =
-      firstName.trim();
-
-    const cleanLastName =
-      lastName.trim();
-
-
-    // ==================================================
-    // VALIDATE FIRST NAME
-    // ==================================================
-
-    if (!cleanFirstName) {
-
-      Alert.alert(
-        "First Name Required",
-        "Please enter your first name."
-      );
-
-      return;
-    }
-
-
-    // ==================================================
-    // VALIDATE LAST NAME
-    // ==================================================
-
-    if (!cleanLastName) {
-
-      Alert.alert(
-        "Surname Required",
-        "Please enter your surname."
-      );
-
-      return;
-    }
-
-
     try {
 
-      setLoading(true);
+      // ==================================================
+      // GET AUTHENTICATED USER DIRECTLY FROM FIREBASE
+      // ==================================================
+
+      const user =
+        auth().currentUser;
 
 
       console.log(
-        "👤 CREATING KANDOLIPA CLIENT"
+        "========================================"
       );
+
+      console.log(
+        "👤 CREATE USER STARTED"
+      );
+
+      console.log(
+        "CURRENT FIREBASE USER:",
+        user
+      );
+
+
+      // ==================================================
+      // MAKE SURE USER IS AUTHENTICATED
+      // ==================================================
+
+      if (!user) {
+
+        console.log(
+          "❌ NO AUTHENTICATED FIREBASE USER"
+        );
+
+        Alert.alert(
+          "Authentication Error",
+          "Your phone verification session is no longer active. Please log in again."
+        );
+
+        navigation.replace("Login");
+
+        return;
+      }
+
+
+      // ==================================================
+      // GET UID AND PHONE
+      // ==================================================
+
+      const uid =
+        user.uid;
+
+      const phoneNumber =
+        user.phoneNumber || "";
+
 
       console.log(
         "🆔 FIREBASE UID:",
@@ -132,9 +111,53 @@ const CreateUser = ({route, navigation}) => {
       );
 
       console.log(
-        "📱 PHONE:",
+        "📱 FIREBASE PHONE:",
         phoneNumber
       );
+
+
+      // ==================================================
+      // CLEAN INPUT
+      // ==================================================
+
+      const cleanFirstName =
+        firstName.trim();
+
+      const cleanLastName =
+        lastName.trim();
+
+
+      // ==================================================
+      // VALIDATE FIRST NAME
+      // ==================================================
+
+      if (!cleanFirstName) {
+
+        Alert.alert(
+          "First Name Required",
+          "Please enter your first name."
+        );
+
+        return;
+      }
+
+
+      // ==================================================
+      // VALIDATE LAST NAME
+      // ==================================================
+
+      if (!cleanLastName) {
+
+        Alert.alert(
+          "Surname Required",
+          "Please enter your surname."
+        );
+
+        return;
+      }
+
+
+      setLoading(true);
 
 
       // ==================================================
@@ -146,19 +169,29 @@ const CreateUser = ({route, navigation}) => {
 
 
       // ==================================================
-      // CLIENT DATABASE REFERENCE
+      // DATABASE PATH
       //
       // KandoLipa
       //    └── clients
-      //         └── {uid}
+      //         └── {Firebase UID}
       //
       // ==================================================
+
+      const databasePath =
+        `KandoLipa/clients/${uid}`;
+
 
       const clientRef =
         ref(
           lipaDb,
-          `KandoLipa/clients/${uid}`
+          databasePath
         );
+
+
+      console.log(
+        "📍 DATABASE PATH:",
+        databasePath
+      );
 
 
       // ==================================================
@@ -167,30 +200,111 @@ const CreateUser = ({route, navigation}) => {
 
       const clientData = {
 
-        // Firebase Authentication UID
-        client_id: uid,
+        // Firebase UID
+        userId:
+          uid,
 
-        // Name
-        first_name: cleanFirstName,
+        client_id:
+          uid,
 
-        last_name: cleanLastName,
 
-        full_name: fullName,
+        // Names
+        firstName:
+          cleanFirstName,
 
-        // Phone verified by Firebase
-        phone: phoneNumber || "",
+        lastName:
+          cleanLastName,
 
-        // Authentication method
-        auth_provider: "phone",
+        first_name:
+          cleanFirstName,
 
-        // Account creation time
-        created_at: Date.now(),
+        last_name:
+          cleanLastName,
+
+        full_name:
+          fullName,
+
+
+        // Phone
+        phoneNumber:
+          phoneNumber,
+
+        phone:
+          phoneNumber,
+
+
+        // Authentication
+        authProvider:
+          "phone",
+
+        auth_provider:
+          "phone",
+
+
+        // Location
+        homeLocation:
+          null,
+
+        currentLocation:
+          null,
+
+
+        // Ride state
+        isOnline:
+          false,
+
+        activeRequestId:
+          null,
+
+        activeTripId:
+          null,
+
+
+        // Wallet
+        walletBalance:
+          0,
+
+
+        // Rating
+        rating:
+          5,
+
+        numRatings:
+          0,
+
+
+        // Trips
+        totalTrips:
+          0,
+
+        completedTrips:
+          0,
+
+        cancelledTrips:
+          0,
+
+
+        // Timestamps
+        createdAt:
+          Date.now(),
+
+        updatedAt:
+          Date.now(),
+
+        created_at:
+          Date.now(),
 
       };
 
 
+      console.log(
+        "📦 CLIENT DATA:",
+        clientData
+      );
+
+
       // ==================================================
-      // SAVE CLIENT
+      // SAVE TO KANDOLIPA DATABASE
       // ==================================================
 
       await set(
@@ -199,18 +313,27 @@ const CreateUser = ({route, navigation}) => {
       );
 
 
+      // ==================================================
+      // SUCCESS
+      // ==================================================
+
       console.log(
         "✅ CLIENT CREATED SUCCESSFULLY"
       );
 
       console.log(
-        "📍 DATABASE PATH:",
-        `KandoLipa/clients/${uid}`
+        "🆔 CLIENT UID:",
+        uid
+      );
+
+      console.log(
+        "📍 SAVED PATH:",
+        databasePath
       );
 
 
       // ==================================================
-      // GO TO HOME
+      // GO HOME
       // ==================================================
 
       navigation.replace(
@@ -219,6 +342,10 @@ const CreateUser = ({route, navigation}) => {
 
 
     } catch (error) {
+
+      console.log(
+        "========================================"
+      );
 
       console.log(
         "❌ CREATE USER ERROR:",
@@ -233,6 +360,10 @@ const CreateUser = ({route, navigation}) => {
       console.log(
         "❌ ERROR MESSAGE:",
         error?.message
+      );
+
+      console.log(
+        "========================================"
       );
 
 
@@ -260,27 +391,17 @@ const CreateUser = ({route, navigation}) => {
 
     <View style={styles.container}>
 
-      {/* ==================================================
-          TITLE
-      ================================================== */}
-
       <Text style={styles.title}>
         Create Your Account
       </Text>
 
-
-      {/* ==================================================
-          SUBTITLE
-      ================================================== */}
 
       <Text style={styles.subtitle}>
         Tell us your name to complete your KandoLipa account.
       </Text>
 
 
-      {/* ==================================================
-          PHONE NUMBER
-      ================================================== */}
+      {/* VERIFIED PHONE */}
 
       <View style={styles.phoneBox}>
 
@@ -289,57 +410,40 @@ const CreateUser = ({route, navigation}) => {
         </Text>
 
         <Text style={styles.phoneText}>
-          {phoneNumber || "Phone number unavailable"}
+          {auth().currentUser?.phoneNumber ||
+            "Phone number unavailable"}
         </Text>
 
       </View>
 
 
-      {/* ==================================================
-          FIRST NAME
-      ================================================== */}
+      {/* FIRST NAME */}
 
       <TextInput
         style={styles.input}
-
         placeholder="First Name"
-
         value={firstName}
-
         onChangeText={setFirstName}
-
         autoCapitalize="words"
-
         autoCorrect={false}
-
         editable={!loading}
       />
 
 
-      {/* ==================================================
-          LAST NAME
-      ================================================== */}
+      {/* LAST NAME */}
 
       <TextInput
         style={styles.input}
-
         placeholder="Surname"
-
         value={lastName}
-
         onChangeText={setLastName}
-
         autoCapitalize="words"
-
         autoCorrect={false}
-
         editable={!loading}
       />
 
 
-      {/* ==================================================
-          CREATE ACCOUNT BUTTON
-      ================================================== */}
+      {/* CREATE ACCOUNT */}
 
       <TouchableOpacity
         style={[
@@ -347,9 +451,7 @@ const CreateUser = ({route, navigation}) => {
           loading &&
             styles.buttonDisabled,
         ]}
-
         onPress={createUser}
-
         disabled={loading}
       >
 
@@ -372,6 +474,7 @@ const CreateUser = ({route, navigation}) => {
     </View>
 
   );
+
 };
 
 
