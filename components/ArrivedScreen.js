@@ -62,7 +62,7 @@ const ArrivedScreen = ({ route, navigation }) => {
 
       console.log("📍 RATING STATS PATH:", statsPath);
 
-      // Use the React Native Firebase database instance API.
+      // Use React Native Firebase Realtime Database API.
       const statsRef = db.ref(statsPath);
 
       console.log("📡 STARTING RATING TRANSACTION...");
@@ -79,18 +79,26 @@ const ArrivedScreen = ({ route, navigation }) => {
         );
 
         /*
-         * Your requested calculation:
+         * CORRECT NEW AVERAGE FORMULA:
          *
-         * (currentAverage + givenRating)
-         * --------------------------------
-         * (currentNumRatings + 1)
+         * New Average =
+         *
+         * ((Old Average × Number of Existing Ratings)
+         *  + New Rating)
+         *
+         * ----------------------------------------------
+         *
+         * (Number of Existing Ratings + 1)
          */
 
         const newNumRatings =
           currentNumRatings + 1;
 
         const newAverage =
-          (currentAverage + rating) /
+          (
+            (currentAverage * currentNumRatings) +
+            rating
+          ) /
           newNumRatings;
 
         console.log(
@@ -121,9 +129,7 @@ const ArrivedScreen = ({ route, navigation }) => {
         return {
           ...(currentStats || {}),
           numRatings: newNumRatings,
-          rating: Number(
-            newAverage.toFixed(2)
-          ),
+          rating: Number(newAverage.toFixed(2)),
         };
       });
 
@@ -143,7 +149,6 @@ const ArrivedScreen = ({ route, navigation }) => {
           },
         ],
       });
-
     } catch (error) {
       console.log("=================================");
       console.log("❌ RATING SUBMISSION ERROR");
@@ -170,7 +175,6 @@ const ArrivedScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-
       <Text style={styles.header}>
         Trip Completed
       </Text>
@@ -181,7 +185,6 @@ const ArrivedScreen = ({ route, navigation }) => {
       </Text>
 
       <View style={styles.card}>
-
         <Text style={styles.label}>
           Vehicle
         </Text>
@@ -224,7 +227,6 @@ const ArrivedScreen = ({ route, navigation }) => {
             finalFare || 0
           ).toLocaleString()}
         </Text>
-
       </View>
 
       <Text style={styles.rateText}>
@@ -232,7 +234,6 @@ const ArrivedScreen = ({ route, navigation }) => {
       </Text>
 
       <View style={styles.starRow}>
-
         {[1, 2, 3, 4, 5].map((star) => (
           <TouchableOpacity
             key={star}
@@ -254,7 +255,6 @@ const ArrivedScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
         ))}
-
       </View>
 
       <TouchableOpacity
@@ -278,7 +278,6 @@ const ArrivedScreen = ({ route, navigation }) => {
             : "Submit Rating"}
         </Text>
       </TouchableOpacity>
-
     </View>
   );
 };
@@ -367,4 +366,3 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
 });
-

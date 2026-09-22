@@ -90,8 +90,8 @@ const SearchingDriver = ({
   // ========================================================
   // REQUEST LOCK
   //
-  // Prevents two rapid Confirm Request presses
-  // from creating two ride requests.
+  // Hard protection against rapid duplicate presses.
+  // This is a ref because it changes synchronously.
   // ========================================================
 
   const requestLock =
@@ -113,6 +113,22 @@ const SearchingDriver = ({
     useState(null);
 
   const [requestSent, setRequestSent] =
+    useState(false);
+
+
+  // ========================================================
+  // CONFIRM BUTTON STATE
+  //
+  // IMPORTANT:
+  //
+  // This state controls the VISUAL button immediately.
+  //
+  // requestLock.current protects against duplicate presses.
+  // isConfirming causes React to immediately re-render the
+  // button and make it gray/disabled.
+  // ========================================================
+
+  const [isConfirming, setIsConfirming] =
     useState(false);
 
 
@@ -320,6 +336,50 @@ const SearchingDriver = ({
     async () => {
 
       // ====================================================
+      // INSTANT VISUAL LOCK
+      //
+      // IMPORTANT:
+      //
+      // This is the FIRST operation when the user taps.
+      // It causes the button to immediately become gray.
+      // ====================================================
+
+      if (
+        requestLock.current ||
+        isConfirming ||
+        requestSent
+      ) {
+
+        console.log(
+          "⚠️ CONFIRM REQUEST ALREADY LOCKED",
+        );
+
+        return;
+      }
+
+
+      // ====================================================
+      // SYNCHRONOUS HARD LOCK
+      //
+      // This happens immediately before ANY await.
+      // ====================================================
+
+      requestLock.current =
+        true;
+
+
+      // ====================================================
+      // IMMEDIATE UI LOCK
+      //
+      // React will re-render the button as disabled.
+      // ====================================================
+
+      setIsConfirming(
+        true,
+      );
+
+
+      // ====================================================
       // DRIVER VALIDATION
       // ====================================================
 
@@ -331,41 +391,24 @@ const SearchingDriver = ({
           "❌ No driver ID",
         );
 
+
+        requestLock.current =
+          false;
+
+
+        setIsConfirming(
+          false,
+        );
+
+
         Alert.alert(
           "Driver Error",
           "No driver was found.",
         );
 
-        return;
-      }
-
-
-      // ====================================================
-      // DUPLICATE REQUEST PROTECTION
-      // ====================================================
-
-      if (
-        requestSent ||
-        requestLock.current
-      ) {
-
-        console.log(
-          "⚠️ REQUEST ALREADY BEING SENT / SENT",
-        );
 
         return;
       }
-
-
-      // ====================================================
-      // LOCK IMMEDIATELY
-      //
-      // This happens BEFORE the async Firebase call.
-      // Therefore a second tap cannot create another request.
-      // ====================================================
-
-      requestLock.current =
-        true;
 
 
       try {
@@ -404,13 +447,22 @@ const SearchingDriver = ({
           status !== "granted"
         ) {
 
+          // Unlock because the request did not happen.
+
           requestLock.current =
             false;
+
+
+          setIsConfirming(
+            false,
+          );
+
 
           Alert.alert(
             "Location Required",
             "Please allow location access to request a ride.",
           );
+
 
           return;
         }
@@ -496,12 +548,6 @@ const SearchingDriver = ({
 
         // ==================================================
         // GET REQUEST ID
-        //
-        // CURRENT SERVER:
-        // request_id
-        //
-        // OLD SERVER:
-        // requestId
         // ==================================================
 
         const newRequestId =
@@ -535,12 +581,30 @@ const SearchingDriver = ({
           newRequestId,
         );
 
+
         setRequestSent(
           true,
         );
 
+
         setRequestStatus(
           "pending",
+        );
+
+
+        // ==================================================
+        // KEEP BUTTON LOCKED
+        //
+        // IMPORTANT:
+        //
+        // We DO NOT reset requestLock here.
+        //
+        // The request was successfully created, therefore
+        // the user must not be allowed to send it again.
+        // ==================================================
+
+        setIsConfirming(
+          false,
         );
 
 
@@ -576,6 +640,11 @@ const SearchingDriver = ({
 
         requestLock.current =
           false;
+
+
+        setIsConfirming(
+          false,
+        );
 
 
         Alert.alert(
@@ -670,9 +739,6 @@ const SearchingDriver = ({
 
           // ==================================================
           // FIREBASE LOCATION REF
-          //
-          // This remains in KandoFaida because the
-          // driver's app uses this location.
           // ==================================================
 
           const clientLocationRef =
@@ -893,25 +959,15 @@ const SearchingDriver = ({
   // ========================================================
   // LISTEN FOR DRIVER RESPONSE
   //
-  // IMPORTANT:
-  //
-  // STATUS IS READ FROM KandoLipa USING THE CLIENT ID.
-  //
   // KandoLipa/
   //   clients/
   //     CLIENT_UID/
   //       ride_requests/
   //         REQUEST_ID/
   //           status
-  //
-  // DO NOT USE driver.mp_id HERE.
   // ========================================================
 
   useEffect(() => {
-
-    // ======================================================
-    // GET AUTHENTICATED CLIENT
-    // ======================================================
 
     const clientId =
       auth.currentUser?.uid;
@@ -929,10 +985,6 @@ const SearchingDriver = ({
     }
 
 
-    // ======================================================
-    // REQUEST ID REQUIRED
-    // ======================================================
-
     if (
       !requestId
     ) {
@@ -945,10 +997,6 @@ const SearchingDriver = ({
     }
 
 
-    // ======================================================
-    // DRIVER ID REQUIRED
-    // ======================================================
-
     if (
       !driver?.mp_id
     ) {
@@ -960,10 +1008,6 @@ const SearchingDriver = ({
       return;
     }
 
-
-    // ======================================================
-    // CORRECT KandoLipa PATH
-    // ======================================================
 
     const requestPath =
       `KandoLipa/clients/${clientId}` +
@@ -1008,20 +1052,12 @@ const SearchingDriver = ({
     );
 
 
-    // ======================================================
-    // FIREBASE REFERENCE
-    // ======================================================
-
     const requestRef =
       ref(
         lipaDb,
         requestPath,
       );
 
-
-    // ======================================================
-    // REQUEST CHANGE HANDLER
-    // ======================================================
 
     const handleRequestChange =
       (snapshot) => {
@@ -1051,10 +1087,6 @@ const SearchingDriver = ({
         );
 
 
-        // ==================================================
-        // REQUEST DOES NOT EXIST
-        // ==================================================
-
         if (
           !request
         ) {
@@ -1066,10 +1098,6 @@ const SearchingDriver = ({
           return;
         }
 
-
-        // ==================================================
-        // READ STATUS
-        // ==================================================
 
         const status =
           request.status ||
@@ -1087,10 +1115,6 @@ const SearchingDriver = ({
         );
 
 
-        // ==================================================
-        // PENDING
-        // ==================================================
-
         if (
           status === "pending"
         ) {
@@ -1102,10 +1126,6 @@ const SearchingDriver = ({
           return;
         }
 
-
-        // ==================================================
-        // ACCEPTED
-        // ==================================================
 
         if (
           status === "accepted"
@@ -1153,10 +1173,6 @@ const SearchingDriver = ({
         }
 
 
-        // ==================================================
-        // REJECTED
-        // ==================================================
-
         if (
           status === "rejected"
         ) {
@@ -1178,8 +1194,14 @@ const SearchingDriver = ({
             null,
           );
 
+
           requestLock.current =
             false;
+
+
+          setIsConfirming(
+            false,
+          );
 
 
           Alert.alert(
@@ -1208,19 +1230,11 @@ const SearchingDriver = ({
       };
 
 
-    // ======================================================
-    // START FIREBASE LISTENER
-    // ======================================================
-
     const unsubscribeRequestListener = onValue(
       requestRef,
       handleRequestChange,
     );
 
-
-    // ======================================================
-    // CLEANUP
-    // ======================================================
 
     return () => {
 
@@ -1255,8 +1269,6 @@ const SearchingDriver = ({
 
   // ========================================================
   // NO DRIVER TIMEOUT
-  //
-  // Only applies BEFORE a winning driver exists.
   // ========================================================
 
   useEffect(() => {
@@ -1351,7 +1363,6 @@ const SearchingDriver = ({
       style={styles.container}
     >
 
-
       {/* ==================================================
           MAP
       ================================================== */}
@@ -1379,7 +1390,6 @@ const SearchingDriver = ({
 
         }}
       >
-
 
         {/* ==================================================
             PICKUP
@@ -1502,7 +1512,6 @@ const SearchingDriver = ({
 
         )}
 
-
       </MapView>
 
 
@@ -1513,7 +1522,6 @@ const SearchingDriver = ({
       <View
         style={styles.card}
       >
-
 
         {/* ==================================================
             ANIMATED VEHICLE ICON
@@ -1698,9 +1706,24 @@ const SearchingDriver = ({
 
               <TouchableOpacity
 
-                style={
-                  styles.confirmButton
+                disabled={
+                  isConfirming
                 }
+
+                activeOpacity={
+                  isConfirming
+                    ? 1
+                    : 0.7
+                }
+
+                style={[
+
+                  styles.confirmButton,
+
+                  isConfirming &&
+                    styles.confirmButtonDisabled,
+
+                ]}
 
                 onPress={
                   sendRequestToDriver
@@ -1713,7 +1736,11 @@ const SearchingDriver = ({
                     styles.confirmText
                   }
                 >
-                  Confirm Request
+
+                  {isConfirming
+                    ? "Requesting..."
+                    : "Confirm Request"}
+
                 </Text>
 
               </TouchableOpacity>
@@ -2067,6 +2094,18 @@ const styles =
 
       alignItems:
         "center",
+
+    },
+
+
+    // ======================================================
+    // DISABLED / REQUESTING BUTTON
+    // ======================================================
+
+    confirmButtonDisabled: {
+
+      backgroundColor:
+        "#9ca3af",
 
     },
 

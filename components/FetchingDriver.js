@@ -95,8 +95,8 @@ const FetchingDriver = ({
   // passenger presses Confirm Pickup.
   //
   // IMPORTANT:
-  // confirmationLocked is NOT turned back to false
-  // anywhere after confirmation starts.
+  // confirmationLocked is NEVER turned back to false
+  // anywhere in this screen.
   // ====================================================
 
   const [
@@ -112,15 +112,19 @@ const FetchingDriver = ({
 
 
   // ====================================================
-  // ABSOLUTE INSTANT LOCK
+  // ABSOLUTE INSTANT CONFIRMATION LOCK
   // ====================================================
   //
-  // This is the FIRST protection against double taps.
+  // This ref is the most important protection against
+  // double requests.
   //
   // useRef changes synchronously.
   //
-  // Once true, it stays true for the entire lifetime
-  // of this FetchingDriver screen.
+  // Once this becomes true, it NEVER becomes false
+  // during the lifetime of this screen.
+  //
+  // This means a second tap cannot get through even if
+  // React has not yet re-rendered the button.
   // ====================================================
 
   const confirmationLockedRef =
@@ -323,25 +327,29 @@ const FetchingDriver = ({
     async () => {
 
       // ==================================================
-      // ABSOLUTE FIRST LINE
+      // ABSOLUTE FIRST CHECK
       // ==================================================
       //
-      // If confirmation has EVER started on this screen,
-      // ignore every subsequent tap.
+      // DO NOT put any await before this check.
       //
-      // NO await happens before this check.
+      // If confirmation has already started OR navigation
+      // has already started, this function immediately
+      // rejects the tap.
+      //
+      // The ref check happens synchronously.
       // ==================================================
 
       if (
-        confirmationLockedRef.current
+        confirmationLockedRef.current ||
+        navigationStartedRef.current
       ) {
 
         console.log(
-          "🚫🚫🚫 CONFIRM PICKUP IS ALREADY PERMANENTLY LOCKED"
+          "🚫🚫🚫 CONFIRM PICKUP IS ALREADY LOCKED"
         );
 
         console.log(
-          "🚫 SECOND TAP IGNORED"
+          "🚫 SECOND REQUEST IS IGNORED"
         );
 
         return;
@@ -355,11 +363,14 @@ const FetchingDriver = ({
       //
       // These happen immediately.
       //
-      // The ref locks synchronously.
-      // The state locks the UI.
+      // The ref locks synchronously BEFORE the first
+      // await in this function.
+      //
+      // React state locks the visible button.
       //
       // IMPORTANT:
-      // We NEVER set this ref back to false.
+      // We NEVER set confirmationLockedRef.current
+      // back to false.
       // ==================================================
 
       confirmationLockedRef.current =
@@ -814,7 +825,7 @@ const FetchingDriver = ({
         //
         // DO NOT DO THIS:
         //
-        // confirmingRef.current = false;
+        // confirmationLockedRef.current = false;
         // setConfirmationLocked(false);
         //
         // DO NOT UNLOCK THE BUTTON.
@@ -1131,7 +1142,10 @@ const FetchingDriver = ({
 
             styles.confirmButton,
 
-            confirmationLocked &&
+            (
+              confirmationLocked ||
+              isConfirming
+            ) &&
               styles.disabledButton,
 
           ]}
@@ -1141,11 +1155,15 @@ const FetchingDriver = ({
           }
 
           disabled={
-            confirmationLocked
+            confirmationLocked ||
+            isConfirming
           }
 
           activeOpacity={
-            confirmationLocked
+            (
+              confirmationLocked ||
+              isConfirming
+            )
               ? 1
               : 0.7
           }

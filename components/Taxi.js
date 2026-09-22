@@ -36,46 +36,6 @@ const Taxi = ({ navigation }) => {
    * ---------------------------------------------------------
    * ANIMATION STATE
    * ---------------------------------------------------------
-   *
-   * MCHORO
-   *
-   * STATIONARY START:
-   *
-   * mchoro
-   *    ↓
-   * mchoro2
-   *    ↓
-   * mchoro
-   *    ↓
-   * mchoro3
-   *
-   * The vehicle stays still during all of the above.
-   *
-   * MOVING:
-   *
-   * mchoro3 <-> mchoro4
-   *
-   * mchoro3 and mchoro4 alternate while the vehicle
-   * moves off screen.
-   *
-   *
-   * ROKA
-   *
-   * STATIONARY:
-   *
-   * roka -> roka2 -> roka3 -> roka4
-   *
-   * MOVING:
-   *
-   * roka5 <-> roka6
-   *
-   *
-   * WEA / ZOA
-   *
-   * wea <-> wea2
-   * zoa <-> zoa2
-   *
-   * while waiting for the startup duration.
    */
 
   const [mchoroFrame, setMchoroFrame] = useState(1);
@@ -87,18 +47,6 @@ const Taxi = ({ navigation }) => {
    * ---------------------------------------------------------
    * STARTUP TIMING
    * ---------------------------------------------------------
-   *
-   * Mchoro:
-   *
-   * 0ms    = mchoro
-   * 300ms  = mchoro2
-   * 600ms  = mchoro
-   * 900ms  = mchoro3
-   *
-   * The vehicle remains stationary until 1200ms.
-   *
-   * At 1200ms movement starts and the frame switches
-   * between mchoro3 and mchoro4.
    */
 
   const ROKA_START_TIME = 1200;
@@ -111,12 +59,6 @@ const Taxi = ({ navigation }) => {
 
   /*
    * Animation refs.
-   *
-   * These allow us to clean up timers when:
-   *
-   * - another ride is selected
-   * - the Taxi screen unmounts
-   * - navigation occurs
    */
 
   const animationTimers = useRef([]);
@@ -158,6 +100,7 @@ const Taxi = ({ navigation }) => {
    */
 
   const handleRidePress = (type) => {
+
     /*
      * Stop every previous animation.
      */
@@ -189,51 +132,11 @@ const Taxi = ({ navigation }) => {
      * -------------------------------------------------------
      * MCHORO
      * -------------------------------------------------------
-     *
-     * EXACT START SEQUENCE:
-     *
-     * 0ms:
-     * mchoro
-     *
-     * 300ms:
-     * mchoro2
-     *
-     * 600ms:
-     * mchoro
-     *
-     * 900ms:
-     * mchoro3
-     *
-     * 1200ms:
-     * START MOVING
-     *
-     * While moving:
-     *
-     * mchoro3
-     * mchoro4
-     * mchoro3
-     * mchoro4
-     * ...
      */
 
     if (type === "Mchoro") {
 
-      /*
-       * Make absolutely sure we begin with mchoro.
-       */
-
       setMchoroFrame(1);
-
-
-      /*
-       * -----------------------------------------------------
-       * FRAME 2
-       *
-       * mchoro -> mchoro2
-       *
-       * At this point the vehicle has NOT moved.
-       * -----------------------------------------------------
-       */
 
       const timer1 = setTimeout(() => {
 
@@ -241,37 +144,11 @@ const Taxi = ({ navigation }) => {
 
       }, 300);
 
-
-      /*
-       * -----------------------------------------------------
-       * FRAME 3
-       *
-       * mchoro2 -> mchoro
-       *
-       * Still stationary.
-       * -----------------------------------------------------
-       */
-
       const timer2 = setTimeout(() => {
 
         setMchoroFrame(1);
 
       }, 600);
-
-
-      /*
-       * -----------------------------------------------------
-       * FRAME 4
-       *
-       * mchoro -> mchoro3
-       *
-       * Still stationary.
-       *
-       * This is the IMPORTANT FIX.
-       *
-       * mchoro3 now appears at 900ms, rather than 1200ms.
-       * -----------------------------------------------------
-       */
 
       const timer3 = setTimeout(() => {
 
@@ -279,38 +156,9 @@ const Taxi = ({ navigation }) => {
 
       }, 900);
 
-
-      /*
-       * -----------------------------------------------------
-       * START MOVEMENT
-       *
-       * At 1200ms:
-       *
-       * The vehicle begins moving.
-       *
-       * It starts from mchoro3 and then alternates:
-       *
-       * mchoro3 <-> mchoro4
-       * -----------------------------------------------------
-       */
-
       const timer4 = setTimeout(() => {
 
-        /*
-         * Start with mchoro3.
-         *
-         * This prevents the vehicle from jumping directly
-         * to mchoro4 when movement begins.
-         */
-
         setMchoroFrame(3);
-
-
-        /*
-         * Wheel/movement animation.
-         *
-         * mchoro3 -> mchoro4 -> mchoro3 -> mchoro4...
-         */
 
         const wheelLoop = setInterval(() => {
 
@@ -326,17 +174,9 @@ const Taxi = ({ navigation }) => {
 
         }, 150);
 
-
         animationIntervals.current.push(
           wheelLoop
         );
-
-
-        /*
-         * ---------------------------------------------------
-         * MOVE VEHICLE OFF SCREEN
-         * ---------------------------------------------------
-         */
 
         Animated.timing(slideAnim, {
 
@@ -349,26 +189,15 @@ const Taxi = ({ navigation }) => {
 
         }).start(() => {
 
-          /*
-           * Stop frame animation when vehicle
-           * has completely moved away.
-           */
-
           clearInterval(
             wheelLoop
           );
-
-
-          /*
-           * Go to FetchingDriver.
-           */
 
           goToFetchingDriver(type);
 
         });
 
       }, ROKA_START_TIME);
-
 
       animationTimers.current.push(
         timer1,
@@ -382,24 +211,11 @@ const Taxi = ({ navigation }) => {
      * -------------------------------------------------------
      * ROKA
      * -------------------------------------------------------
-     *
-     * Start:
-     *
-     * roka -> roka2 -> roka3 -> roka4
-     *
-     * Roka does NOT move during these frames.
-     *
-     * After roka4:
-     *
-     * roka5 <-> roka6
-     *
-     * Then it moves off screen.
      */
 
     else if (type === "Roka") {
 
       setRokaFrame(1);
-
 
       const timer1 = setTimeout(() => {
 
@@ -407,13 +223,11 @@ const Taxi = ({ navigation }) => {
 
       }, 300);
 
-
       const timer2 = setTimeout(() => {
 
         setRokaFrame(3);
 
       }, 600);
-
 
       const timer3 = setTimeout(() => {
 
@@ -421,11 +235,9 @@ const Taxi = ({ navigation }) => {
 
       }, 900);
 
-
       const timer4 = setTimeout(() => {
 
         setRokaFrame(5);
-
 
         const wheelLoop = setInterval(() => {
 
@@ -435,11 +247,9 @@ const Taxi = ({ navigation }) => {
 
         }, 150);
 
-
         animationIntervals.current.push(
           wheelLoop
         );
-
 
         Animated.timing(slideAnim, {
 
@@ -462,7 +272,6 @@ const Taxi = ({ navigation }) => {
 
       }, ROKA_START_TIME);
 
-
       animationTimers.current.push(
         timer1,
         timer2,
@@ -475,18 +284,11 @@ const Taxi = ({ navigation }) => {
      * -------------------------------------------------------
      * WEA
      * -------------------------------------------------------
-     *
-     * wea <-> wea2
-     *
-     * while waiting for the startup duration.
-     *
-     * Then move off screen.
      */
 
     else if (type === "Wea") {
 
       setWeaFrame(1);
-
 
       const wheelLoop = setInterval(() => {
 
@@ -496,18 +298,15 @@ const Taxi = ({ navigation }) => {
 
       }, 150);
 
-
       animationIntervals.current.push(
         wheelLoop
       );
-
 
       const timer = setTimeout(() => {
 
         clearInterval(
           wheelLoop
         );
-
 
         Animated.timing(slideAnim, {
 
@@ -525,7 +324,6 @@ const Taxi = ({ navigation }) => {
         });
 
       }, ROKA_START_TIME);
-
 
       animationTimers.current.push(
         timer
@@ -536,18 +334,11 @@ const Taxi = ({ navigation }) => {
      * -------------------------------------------------------
      * ZOA
      * -------------------------------------------------------
-     *
-     * zoa <-> zoa2
-     *
-     * while waiting for the startup duration.
-     *
-     * Then move off screen.
      */
 
     else if (type === "Zoa") {
 
       setZoaFrame(1);
-
 
       const wheelLoop = setInterval(() => {
 
@@ -557,18 +348,15 @@ const Taxi = ({ navigation }) => {
 
       }, 150);
 
-
       animationIntervals.current.push(
         wheelLoop
       );
-
 
       const timer = setTimeout(() => {
 
         clearInterval(
           wheelLoop
         );
-
 
         Animated.timing(slideAnim, {
 
@@ -586,7 +374,6 @@ const Taxi = ({ navigation }) => {
         });
 
       }, ROKA_START_TIME);
-
 
       animationTimers.current.push(
         timer
@@ -604,7 +391,6 @@ const Taxi = ({ navigation }) => {
     useRef(
       new Animated.Value(0)
     ).current;
-
 
   /*
    * ---------------------------------------------------------
@@ -624,7 +410,6 @@ const Taxi = ({ navigation }) => {
 
   }, []);
 
-
   /*
    * ---------------------------------------------------------
    * GET USER LOCATION
@@ -638,7 +423,6 @@ const Taxi = ({ navigation }) => {
       const { status } =
         await Location.requestForegroundPermissionsAsync();
 
-
       if (
         status !== "granted"
       ) {
@@ -651,7 +435,6 @@ const Taxi = ({ navigation }) => {
 
       }
 
-
       const location =
         await Location.getCurrentPositionAsync({
 
@@ -660,23 +443,19 @@ const Taxi = ({ navigation }) => {
 
         });
 
-
       setUserLocation(
         location.coords
       );
-
 
       const geocode =
         await Location.reverseGeocodeAsync(
           location.coords
         );
 
-
       console.log(
         "GEOCODE:",
         geocode
       );
-
 
       if (
         geocode.length > 0
@@ -698,11 +477,9 @@ const Taxi = ({ navigation }) => {
 
     };
 
-
     getLocation();
 
   }, []);
-
 
   /*
    * ---------------------------------------------------------
@@ -752,7 +529,6 @@ const Taxi = ({ navigation }) => {
     userLocation,
   ]);
 
-
   /*
    * ---------------------------------------------------------
    * LOAD RIDE OPTIONS
@@ -776,7 +552,6 @@ const Taxi = ({ navigation }) => {
       userLocation
     );
 
-
     const loadRides = async () => {
 
       if (
@@ -787,7 +562,6 @@ const Taxi = ({ navigation }) => {
         return;
 
       }
-
 
       try {
 
@@ -816,12 +590,10 @@ const Taxi = ({ navigation }) => {
 
           });
 
-
         console.log(
           "Ride options:",
           result.data
         );
-
 
         setRideOptions(
           result.data
@@ -837,7 +609,6 @@ const Taxi = ({ navigation }) => {
 
     };
 
-
     loadRides();
 
   }, [
@@ -845,11 +616,9 @@ const Taxi = ({ navigation }) => {
     destination,
   ]);
 
-
   const isLoading =
     !userLocation ||
     !region.countryCode;
-
 
   if (isLoading) {
 
@@ -873,18 +642,15 @@ const Taxi = ({ navigation }) => {
 
   }
 
-
   console.log(
     "RIDE OPTIONS KEYS:",
     Object.keys(rideOptions)
   );
 
-
   console.log(
     "RIDE OPTIONS STATE:",
     rideOptions
   );
-
 
   return (
 
@@ -930,7 +696,6 @@ const Taxi = ({ navigation }) => {
 
           />
 
-
           {destination && (
 
             <Marker
@@ -940,7 +705,6 @@ const Taxi = ({ navigation }) => {
             />
 
           )}
-
 
           {userLocation &&
             destination && (
@@ -971,7 +735,6 @@ const Taxi = ({ navigation }) => {
 
       )}
 
-
       {/* AUTOCOMPLETE SEARCH */}
 
       <View
@@ -1001,7 +764,6 @@ const Taxi = ({ navigation }) => {
               data
             );
 
-
             if (!details) {
 
               console.log(
@@ -1012,10 +774,8 @@ const Taxi = ({ navigation }) => {
 
             }
 
-
             const location =
               details.geometry.location;
-
 
             setDestination({
 
@@ -1027,13 +787,11 @@ const Taxi = ({ navigation }) => {
 
             });
 
-
             console.log(
               "DESTINATION SET"
             );
 
           }}
-
 
           query={{
 
@@ -1049,7 +807,6 @@ const Taxi = ({ navigation }) => {
                 : undefined,
 
           }}
-
 
           styles={{
 
@@ -1104,7 +861,6 @@ const Taxi = ({ navigation }) => {
 
       </View>
 
-
       {/* TOP CONTROLS */}
 
       <View
@@ -1144,7 +900,6 @@ const Taxi = ({ navigation }) => {
 
           </TouchableOpacity>
 
-
           <TouchableOpacity
 
             style={[
@@ -1156,9 +911,15 @@ const Taxi = ({ navigation }) => {
 
             ]}
 
-            onPress={() =>
-              setRideFor("other")
-            }
+            onPress={() => {
+
+              alert(
+                "Feature currently unavailable."
+              );
+
+              setRideFor("me");
+
+            }}
 
           >
 
@@ -1169,7 +930,6 @@ const Taxi = ({ navigation }) => {
           </TouchableOpacity>
 
         </View>
-
 
         {/* BACK HOME */}
 
@@ -1194,7 +954,6 @@ const Taxi = ({ navigation }) => {
         </TouchableOpacity>
 
       </View>
-
 
       {/* RIDE CARDS */}
 
@@ -1283,7 +1042,6 @@ const Taxi = ({ navigation }) => {
 
               />
 
-
               <Animated.View
 
                 style={[
@@ -1315,7 +1073,6 @@ const Taxi = ({ navigation }) => {
                       },
 
                     ],
-
 
                     opacity:
 
@@ -1349,7 +1106,6 @@ const Taxi = ({ navigation }) => {
                     Mchoro
                   </Text>
 
-
                   <Text
                     style={
                       styles.vehicleEta
@@ -1370,7 +1126,6 @@ const Taxi = ({ navigation }) => {
                   </Text>
 
                 </View>
-
 
                 <Text
                   style={
@@ -1396,7 +1151,6 @@ const Taxi = ({ navigation }) => {
           </TouchableOpacity>
 
         )}
-
 
         {/* =================================================
             ROKA
@@ -1489,7 +1243,6 @@ const Taxi = ({ navigation }) => {
 
               />
 
-
               <Animated.View
 
                 style={[
@@ -1521,7 +1274,6 @@ const Taxi = ({ navigation }) => {
                       },
 
                     ],
-
 
                     opacity:
 
@@ -1555,7 +1307,6 @@ const Taxi = ({ navigation }) => {
                     Roka
                   </Text>
 
-
                   <Text
                     style={
                       styles.vehicleEta
@@ -1576,7 +1327,6 @@ const Taxi = ({ navigation }) => {
                   </Text>
 
                 </View>
-
 
                 <Text
                   style={
@@ -1602,7 +1352,6 @@ const Taxi = ({ navigation }) => {
           </TouchableOpacity>
 
         )}
-
 
         {/* =================================================
             WEA
@@ -1671,7 +1420,6 @@ const Taxi = ({ navigation }) => {
 
               />
 
-
               <Animated.View
 
                 style={[
@@ -1703,7 +1451,6 @@ const Taxi = ({ navigation }) => {
                       },
 
                     ],
-
 
                     opacity:
 
@@ -1737,7 +1484,6 @@ const Taxi = ({ navigation }) => {
                     Wea
                   </Text>
 
-
                   <Text
                     style={
                       styles.vehicleEta
@@ -1758,7 +1504,6 @@ const Taxi = ({ navigation }) => {
                   </Text>
 
                 </View>
-
 
                 <Text
                   style={
@@ -1784,7 +1529,6 @@ const Taxi = ({ navigation }) => {
           </TouchableOpacity>
 
         )}
-
 
         {/* =================================================
             ZOA
@@ -1853,7 +1597,6 @@ const Taxi = ({ navigation }) => {
 
               />
 
-
               <Animated.View
 
                 style={[
@@ -1885,7 +1628,6 @@ const Taxi = ({ navigation }) => {
                       },
 
                     ],
-
 
                     opacity:
 
@@ -1919,7 +1661,6 @@ const Taxi = ({ navigation }) => {
                     Zoa
                   </Text>
 
-
                   <Text
                     style={
                       styles.vehicleEta
@@ -1940,7 +1681,6 @@ const Taxi = ({ navigation }) => {
                   </Text>
 
                 </View>
-
 
                 <Text
                   style={
@@ -2128,3 +1868,4 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 });
+

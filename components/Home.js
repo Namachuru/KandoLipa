@@ -49,35 +49,43 @@ const Home = ({ navigation }) => {
         Welcome to KandoLipa
       </Text>
 
-      <Button
-        title="Shop"
-        color="rgb(165,231,90)"
-        onPress={() =>
-          navigation.navigate("Shop")
-        }
-      />
+      <View style={styles.buttonContainer}>
+        <Button
+          title="Shop"
+          color="rgb(165,231,90)"
+          onPress={() =>
+            navigation.navigate("Shop")
+          }
+        />
+      </View>
 
-      <Button
-        title="Real Estate"
-        color="rgb(165,231,90)"
-        onPress={() =>
-          navigation.navigate("Real Estate")
-        }
-      />
+      <View style={styles.buttonContainer}>
+        <Button
+          title="Real Estate"
+          color="rgb(165,231,90)"
+          onPress={() =>
+            navigation.navigate("Real Estate")
+          }
+        />
+      </View>
 
-      <Button
-        title="Taxi"
-        color="rgb(165,231,90)"
-        onPress={() =>
-          navigation.navigate("Taxi")
-        }
-      />
+      <View style={styles.buttonContainer}>
+        <Button
+          title="Taxi"
+          color="rgb(165,231,90)"
+          onPress={() =>
+            navigation.navigate("Taxi")
+          }
+        />
+      </View>
 
-      <Button
-        title="Logout"
-        color="red"
-        onPress={handleLogout}
-      />
+      <View style={styles.buttonContainer}>
+        <Button
+          title="Logout"
+          color="red"
+          onPress={handleLogout}
+        />
+      </View>
 
     </View>
 
@@ -100,6 +108,11 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 20,
     color: "black",
+  },
+
+  buttonContainer: {
+    marginVertical: 8,
+    width: "80%",
   },
 
 });
