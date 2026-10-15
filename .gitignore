@@ -47,3 +47,8 @@ google-services.json
 
 # Firebase service account credentials
 functions/*service-account*.json
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
