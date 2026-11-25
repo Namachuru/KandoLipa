@@ -49,16 +49,14 @@ How It Works
 
 Screenshots
 
-1. Splash Screen
+1. [Splash Screen](./Screenshots/1_splash_screen.png)
 2. Phone Authentication
-3. Home Screen
-4. Select Pickup & Destination
-5. Ride Options
+3. [Home Screen](./Screenshots/3_home_screen.png)
+4. [Select Pickup & Destination](./Screenshots/4_select_pickup_&_destination.png)
+5. [Ride Options](./Screenshots/5_ride_options.png)
 6. Searching for Driver
-7. Driver Assigned
-8. Trip in Progress
-
-(Screenshots will be added as development progresses.)
+7. [Driver Assigned](./Screenshots/7_driver_assigned.png)
+8. [Trip in Progress](./Screenshots/8_trip_in_progress.png)
 
 ---
 
